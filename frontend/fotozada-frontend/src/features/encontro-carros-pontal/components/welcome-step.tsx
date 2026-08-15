@@ -20,7 +20,7 @@ export function WelcomeStep({ onStart }: { onStart: () => void }) {
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 200, damping: 18, delay: 0.1 }}
-          className="mx-auto w-full max-w-sm drop-shadow-2xl"
+          className="mx-auto w-full max-w-md drop-shadow-2xl"
         />
         <div className="space-y-1">
           <h2 className="text-lg font-bold text-[#f2e6c1]">
@@ -39,7 +39,7 @@ export function WelcomeStep({ onStart }: { onStart: () => void }) {
         initial={{ x: -120, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 120, damping: 20, delay: 0.5 }}
-        className="pointer-events-none absolute -bottom-4 left-1/2 w-72 max-w-[80%] -translate-x-1/2 drop-shadow-2xl"
+        className="pointer-events-none absolute bottom-8 left-1/2 w-72 max-w-[80%] -translate-x-1/2 drop-shadow-2xl"
       />
 
       <motion.div

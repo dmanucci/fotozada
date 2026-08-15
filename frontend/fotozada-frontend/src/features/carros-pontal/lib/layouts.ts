@@ -1,13 +1,10 @@
 import type { Cell, LayoutId } from "../../print/types";
 
-// Motor de layout do evento Encontro de Carros Pontal — cópia independente
-// do motor genérico (features/print/lib/layouts.ts) porque este evento
-// compõe em 3 camadas (fundo -> foto -> overlay) e tem 5 designs de moldura
-// selecionáveis por formato. A geometria das células é a mesma dos outros
-// eventos de 3-modelos (tirinha/vertical/horizontal) — só a arte ao redor
-// da foto muda entre os designs.
+// Motor de layout do evento Carros Antigos de Pontal-SP — cópia do motor do
+// Arraiá Regalle (mesma DNP RX1, mesma calibração de overscan/costura já
+// validada em evento real). Só a arte das molduras muda entre os eventos.
 
-export interface RegalleLayoutDef {
+export interface CarrosLayoutDef {
   id: LayoutId;
   label: string;
   photos: number;
@@ -33,14 +30,13 @@ export interface RegalleLayoutDef {
 const SHEET = { width: 1200, height: 1800 }; // 10×15 retrato @ 300 DPI
 const SHEET_H = { width: 1800, height: 1200 }; // 10×15 paisagem @ 300 DPI
 
-// Padding branco entre a foto e a moldura, em unidades do viewBox. Separado
-// por eixo E por tipo de moldura — cada design/orientação tem sua própria
-// proporção de slot, então o mesmo valor não serve pros três (ex: vertical
-// já calibrado ficava sem borda lateral nenhuma no horizontal).
+// Padding branco entre a foto e a moldura, em unidades do viewBox. Mesmos
+// valores calibrados no Arraiá Regalle — a geometria física da folha e da
+// impressora não muda entre eventos, só a arte das molduras.
 const STRIP_INSET_X = 6;
 const STRIP_INSET_Y = 4;
-const V_INSET_X = 6; // calibrado — não mexer, já está perfeito
-const V_INSET_Y = 2.5; // calibrado — não mexer, já está perfeito
+const V_INSET_X = 6;
+const V_INSET_Y = 2.5;
 const H_INSET_X = 7;
 const H_INSET_Y = 2.5;
 
@@ -120,11 +116,8 @@ export const BASE_LAYOUTS: BaseLayout[] = [
     cells: STRIP_CELLS,
     _mirrorX: STRIP_W,
     _stripSize: { w: STRIP_W, h: STRIP_H },
-    // Bordas externas reais (já calibradas, ok).
     _cropLeft: -14,
     _cropRight: -14,
-    // Costura no meio — assimétrica: lado da tira-1 tinha um vão grande,
-    // lado da tira-2 só um resquício pequeno.
     _cropSeamLeft: -24,
     _cropSeamRight: -16,
   },
@@ -145,27 +138,23 @@ export const BASE_LAYOUTS: BaseLayout[] = [
     sheet: SHEET_H,
     cellAspect: H_CELL.w / H_CELL.h,
     cells: [H_CELL],
-    // Overscan da DNP nesse layout aparece embaixo (compensado encolhendo
-    // pra dentro). Já a borda mínima na direita é o oposto: a impressora não
-    // imprime até a borda física real ali — valor negativo faz o conteúdo
-    // sangrar levemente pra fora nesse lado, cobrindo essa faixa sem tinta.
     _cropBottom: 15,
     _cropRight: -10,
   },
 ];
 
 // 0 = "sem moldura" (nem fundo nem overlay, só a foto na folha branca).
-// Só 3 designs disponíveis pro evento (0, 1 e 2) — sem 3/4/5.
+// Reduzido a [0, 1, 2] pro prazo do evento — dá pra adicionar mais designs
+// depois (basta subir os SVGs em /public/carros-pontal/<Pasta>/N-bg.svg e
+// incluir o número aqui).
 export const FRAME_NUMBERS = [0, 1, 2] as const;
 export type FrameNumber = (typeof FRAME_NUMBERS)[number];
 
 export function frameAssetPaths(folder: FrameFolder, n: FrameNumber) {
   if (n === 0) return { bg: undefined, overlay: undefined };
   return {
-    bg: `/encontro-carros-pontal/${folder}/${n}-bg.svg`,
-    // Todos os designs desse evento têm overlay (diferente do Regalle, onde
-    // o design 1 era "sem clipart" por escolha).
-    overlay: `/encontro-carros-pontal/${folder}/${n}-overlay.svg`,
+    bg: `/carros-pontal/${folder}/${n}-bg.svg`,
+    overlay: n === 1 ? undefined : `/carros-pontal/${folder}/${n}-overlay.svg`,
   };
 }
 
@@ -188,7 +177,7 @@ function fullBleedCells(base: BaseLayout): Cell[] {
   return [{ x: 0, y: 0, w: base.sheet.width, h: base.sheet.height }];
 }
 
-export function buildLayout(baseId: LayoutId, frameNumber: FrameNumber): RegalleLayoutDef {
+export function buildLayout(baseId: LayoutId, frameNumber: FrameNumber): CarrosLayoutDef {
   const base = BASE_LAYOUTS.find((b) => b.id === baseId);
   if (!base) throw new Error(`layout desconhecido: ${baseId}`);
   const { bg, overlay } = frameAssetPaths(base.folder, frameNumber);
