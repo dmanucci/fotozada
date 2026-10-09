@@ -81,6 +81,50 @@ function IntroScene({ container, onSkip }: { container: React.RefObject<HTMLDivE
   );
 }
 
+// Carrossel horizontal das fotos de um mês. Usa scroll-snap nativo: o swipe
+// lateral fica aqui dentro e o gesto vertical continua pulando de mês.
+function PhotoCarousel({ item }: { item: StoryMonth }) {
+  const track = useRef<HTMLDivElement>(null);
+  const [current, setCurrent] = useState(0);
+  const many = item.photos.length > 1;
+
+  return (
+    <div className="relative">
+      <div className="rounded-[2rem] bg-white p-2.5 shadow-[0_12px_40px_-8px_rgba(139,85,128,0.45)]">
+        <div
+          ref={track}
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            setCurrent(Math.round(el.scrollLeft / el.clientWidth));
+          }}
+          className="flex w-[68vw] max-w-72 snap-x snap-mandatory overflow-x-auto rounded-3xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {item.photos.map((src, i) => (
+            <img
+              key={src}
+              src={src}
+              alt={`Izabel — ${item.label} (${i + 1} de ${item.photos.length})`}
+              loading="lazy"
+              draggable={false}
+              className="aspect-4/5 w-full shrink-0 snap-center object-cover"
+            />
+          ))}
+        </div>
+      </div>
+      {many && (
+        <div className="absolute -bottom-5 left-0 right-0 flex justify-center gap-1.5">
+          {item.photos.map((_, i) => (
+            <span
+              key={i}
+              className={`h-1.5 rounded-full transition-all ${i === current ? "w-4 bg-[#ef8fb0]" : "w-1.5 bg-[#8b5580]/30"}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MonthScene({
   item,
   container,
@@ -111,14 +155,7 @@ function MonthScene({
       <Butterfly name={butterfly} progress={progress} drift={70} className={side} />
 
       <motion.div style={{ y: photoY, opacity: photoOpacity, scale: grow, rotate: tilt }} className="relative">
-        <div className="rounded-[2rem] bg-white p-2.5 shadow-[0_12px_40px_-8px_rgba(139,85,128,0.45)]">
-          <img
-            src={item.photo}
-            alt={`Izabel — ${item.label}`}
-            loading="lazy"
-            className="aspect-4/5 w-[68vw] max-w-72 rounded-3xl object-cover"
-          />
-        </div>
+        <PhotoCarousel item={item} />
       </motion.div>
 
       <motion.div style={{ opacity: photoOpacity }} className="relative text-center">
