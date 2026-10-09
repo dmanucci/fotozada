@@ -3,6 +3,7 @@ import { AdminPage } from "@/features/admin/admin-page";
 import { ArraialPage } from "@/features/arraial/arraial-page";
 import { ArraiaRegallePage } from "@/features/arraia-regalle/arraia-regalle-page";
 import { EncontroCarrosPontalPage } from "@/features/encontro-carros-pontal/encontro-carros-pontal-page";
+import { IzabelPage } from "@/features/izabel/izabel-page";
 import { LandingPage } from "@/features/landing/landing-page";
 import { UnaerpConceptPage } from "@/features/unaerp-concept/unaerp-concept-page";
 
@@ -14,6 +15,7 @@ export function AppRouter() {
         <Route path="/arraia-regalle" element={<ArraiaRegallePage />} />
         <Route path="/carros-pontal" element={<EncontroCarrosPontalPage />} />
         <Route path="/unaerp-concept" element={<UnaerpConceptPage />} />
+        <Route path="/izabel" element={<IzabelPage />} />
         <Route path="/landing" element={<LandingPage />} />
         <Route path="/admin" element={<AdminPage />} />
       </Routes>
