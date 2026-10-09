@@ -94,3 +94,12 @@
     min-height: 100svh;
   }
 }
+
+/* Borboletas/fadinha: animação só de transform em CSS (roda no compositor,
+   sem custo de JS por frame). Pausa quando a cena está longe da tela. */
+@keyframes flutter {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(8deg); }
+}
+.flutter { animation: flutter 5s ease-in-out infinite; will-change: transform; }
+[data-near="false"] .flutter { animation-play-state: paused; }

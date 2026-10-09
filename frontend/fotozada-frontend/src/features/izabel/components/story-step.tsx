@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AnimatePresence,
   motion,
@@ -24,6 +24,23 @@ function useSceneProgress(container: React.RefObject<HTMLDivElement | null>) {
   return { ref, progress: scrollYProgress };
 }
 
+// true quando a cena está a até ~1 tela de distância do viewport do scroll.
+// Cenas longe não montam nada pesado (fotos, parallax, sombras).
+function useNear(ref: React.RefObject<HTMLElement | null>, container: React.RefObject<HTMLDivElement | null>) {
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setNear(e.isIntersecting), {
+      root: container.current,
+      rootMargin: "100% 0px 100% 0px",
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ref, container]);
+  return near;
+}
+
 function Butterfly({
   name,
   className,
@@ -37,15 +54,16 @@ function Butterfly({
 }) {
   const y = useTransform(progress, [0, 1], [drift, -drift]);
   return (
-    <motion.img
-      src={`/izabel/${name}.webp`}
-      alt=""
-      aria-hidden
-      style={{ y }}
-      animate={{ rotate: [-6, 8, -6] }}
-      transition={{ duration: 4 + drift / 40, repeat: Infinity, ease: "easeInOut" }}
-      className={`pointer-events-none absolute w-12 select-none ${className}`}
-    />
+    <motion.div style={{ y }} className={`pointer-events-none absolute w-12 ${className}`}>
+      <img
+        src={`/izabel/${name}.webp`}
+        alt=""
+        aria-hidden
+        decoding="async"
+        style={{ animationDuration: `${4 + drift / 40}s` }}
+        className="flutter w-full select-none"
+      />
+    </motion.div>
   );
 }
 
@@ -82,7 +100,7 @@ function IntroScene({ container, onSkip }: { container: React.RefObject<HTMLDivE
       >
         <SkipForward className="h-4 w-4" /> Pular para as fotos
       </button>
-      <img src="/izabel/flores.webp" alt="" aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 w-full opacity-70" />
+      <img src="/izabel/flores.webp" alt="" aria-hidden decoding="async" className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 w-full opacity-70" />
     </section>
   );
 }
@@ -121,7 +139,7 @@ function PhotoCarousel({
         {item.photos.map((p, i) => (
           <div
             key={p.src}
-            className={`w-[64vw] max-w-64 shrink-0 snap-center rounded-[2rem] bg-white p-2.5 shadow-[0_12px_40px_-8px_rgba(139,85,128,0.45)] transition-all duration-300 ${
+            className={`w-[64vw] max-w-64 shrink-0 snap-center rounded-[2rem] bg-white p-2.5 shadow-[0_6px_16px_-4px_rgba(139,85,128,0.4)] transition-[transform,opacity] duration-300 ${
               i === current ? "scale-100 opacity-100" : "scale-90 opacity-60"
             }`}
           >
@@ -129,6 +147,7 @@ function PhotoCarousel({
               src={p.src}
               alt={`Izabel — ${item.label} (${i + 1} de ${item.photos.length})`}
               loading="lazy"
+              decoding="async"
               draggable={false}
               className="aspect-4/5 w-full rounded-3xl object-cover"
             />
@@ -174,34 +193,77 @@ function MonthScene({
   item: StoryMonth;
   container: React.RefObject<HTMLDivElement | null>;
 }) {
-  const { ref, progress } = useSceneProgress(container);
+  const ref = useRef<HTMLElement>(null);
+  const near = useNear(ref, container);
   const [current, setCurrent] = useState(0);
+  const caption = item.photos[current]?.caption ?? "";
+
+  // O <section> é sempre renderizado (mantém a altura/snap); o conteúdo
+  // pesado só existe enquanto a cena está perto da tela.
+  return (
+    <section
+      ref={ref}
+      data-near={near}
+      className="relative flex h-full shrink-0 snap-center flex-col items-center justify-center gap-4 overflow-hidden"
+    >
+      {near && (
+        <MonthContent
+          item={item}
+          sectionRef={ref}
+          container={container}
+          current={current}
+          onChange={setCurrent}
+          caption={caption}
+        />
+      )}
+    </section>
+  );
+}
+
+function MonthContent({
+  item,
+  sectionRef,
+  container,
+  current,
+  onChange,
+  caption,
+}: {
+  item: StoryMonth;
+  sectionRef: React.RefObject<HTMLElement | null>;
+  container: React.RefObject<HTMLDivElement | null>;
+  current: number;
+  onChange: (i: number) => void;
+  caption: string;
+}) {
+  const { scrollYProgress: progress } = useScroll({
+    target: sectionRef,
+    container,
+    offset: ["start end", "end start"],
+  });
   // Parallax: o numeral de fundo anda mais devagar que a foto.
   const numY = useTransform(progress, [0, 1], [120, -120]);
-  const photoY = useTransform(progress, [0, 1], [50, -50]);
-  const photoOpacity = useTransform(progress, [0.1, 0.4, 0.6, 0.9], [0, 1, 1, 0]);
+  const photoY = useTransform(progress, [0, 1], [40, -40]);
   // "Crescer": as fotos aumentam um pouco a cada mês.
   const grow = 0.82 + (item.month / STORY_MONTHS.length) * 0.18;
   const butterfly = BUTTERFLIES[item.month % BUTTERFLIES.length];
   const side = item.month % 2 === 0 ? "right-[6%] top-[12%]" : "left-[6%] top-[16%]";
-  const caption = item.photos[current]?.caption ?? "";
 
   return (
-    <section ref={ref} className="relative flex h-full shrink-0 snap-center flex-col items-center justify-center gap-4 overflow-hidden">
+    <>
       <motion.span
         aria-hidden
         style={{ y: numY }}
-        className="pointer-events-none absolute select-none font-[Nunito] text-[16rem] font-black leading-none text-[#ef8fb0]/20"
+        className="pointer-events-none absolute select-none font-[Nunito] text-[16rem] font-black leading-none text-[#ef8fb0]/20 will-change-transform"
       >
         {item.month}
       </motion.span>
       <Butterfly name={butterfly} progress={progress} drift={70} className={side} />
 
-      <motion.div style={{ y: photoY, opacity: photoOpacity, scale: grow }} className="relative w-full">
-        <PhotoCarousel item={item} current={current} onChange={setCurrent} />
+      <motion.div style={{ y: photoY, scale: grow }} className="relative w-full will-change-transform">
+        <PhotoCarousel item={item} current={current} onChange={onChange} />
       </motion.div>
 
-      <motion.div style={{ opacity: photoOpacity }} className="relative px-8 text-center">
+      <div className="relative px-8 text-center">
         <h3 className="font-[Nunito] text-3xl font-black text-[#6a3a64]">{item.label}</h3>
         <div className="mt-1 h-12">
           <AnimatePresence mode="wait">
@@ -217,8 +279,8 @@ function MonthScene({
             </motion.p>
           </AnimatePresence>
         </div>
-      </motion.div>
-    </section>
+      </div>
+    </>
   );
 }
 
@@ -228,17 +290,18 @@ function FinalScene({ container, onStart }: { container: React.RefObject<HTMLDiv
   const fade = useTransform(progress, [0, 0.4], [0, 1]);
   return (
     <section ref={ref} className="relative flex h-full shrink-0 snap-center flex-col items-center justify-center gap-4 overflow-hidden px-6 text-center">
-      <img src="/izabel/flores.webp" alt="" aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 w-full opacity-70" />
+      <img src="/izabel/flores.webp" alt="" aria-hidden decoding="async" className="pointer-events-none absolute inset-x-0 bottom-0 w-full opacity-70" />
       <Butterfly name="borboleta-1" progress={progress} drift={50} className="left-[8%] top-[10%]" />
       <Butterfly name="borboleta-3" progress={progress} drift={80} className="right-[8%] top-[18%]" />
-      <motion.img
-        src="/izabel/izabel-fada.webp"
-        alt="Izabel fadinha"
-        style={{ y: fly, opacity: fade }}
-        animate={{ rotate: [-2, 2, -2] }}
-        transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-        className="relative w-[78%] max-w-xs drop-shadow-xl"
-      />
+      <motion.div style={{ y: fly, opacity: fade }} className="relative w-[78%] max-w-xs">
+        <img
+          src="/izabel/izabel-fada.webp"
+          alt="Izabel fadinha"
+          decoding="async"
+          style={{ animationDuration: "6s" }}
+          className="flutter w-full"
+        />
+      </motion.div>
       <motion.div style={{ opacity: fade }} className="relative">
         <h2 className="font-[Nunito] text-5xl font-black text-[#ef8fb0]">{FINAL_LABEL}!</h2>
         <p className="mt-1 text-[#8b5580]">Agora é a sua vez de entrar na história.</p>
@@ -286,7 +349,7 @@ export function StoryStep({ onStart }: { onStart: () => void }) {
           key={chip}
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: chip ? 1 : 0, y: 0 }}
-          className="rounded-full bg-white/80 px-4 py-1 text-sm font-bold text-[#8b5580] shadow-sm backdrop-blur-sm"
+          className="rounded-full bg-white/95 px-4 py-1 text-sm font-bold text-[#8b5580] shadow-sm"
         >
           {chip}
         </motion.div>
