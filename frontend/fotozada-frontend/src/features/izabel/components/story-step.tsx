@@ -107,6 +107,24 @@ function IntroScene({ container, onSkip }: { container: React.RefObject<HTMLDivE
   );
 }
 
+// A dica "mais fotos" aparece só no primeiro carrossel e some para sempre
+// depois que a pessoa desliza uma vez (lembrado no aparelho).
+const HINT_KEY = "fotozada_izabel_swipe_hint_seen";
+let hintSeen = false;
+try {
+  hintSeen = localStorage.getItem(HINT_KEY) === "1";
+} catch {
+  // sem localStorage: vale só até recarregar a página
+}
+function markHintSeen() {
+  hintSeen = true;
+  try {
+    localStorage.setItem(HINT_KEY, "1");
+  } catch {
+    // ignore
+  }
+}
+
 // Carrossel horizontal das fotos de um mês. Usa scroll-snap nativo: o swipe
 // lateral fica aqui dentro e o gesto vertical continua pulando de mês. A
 // próxima foto aparece espiando na lateral (e um aviso pulsa) para mostrar
@@ -120,7 +138,8 @@ function PhotoCarousel({
   current: number;
   onChange: (i: number) => void;
 }) {
-  const [touched, setTouched] = useState(false);
+  const [touched, setTouched] = useState(hintSeen);
+  const showHint = item.month === STORY_MONTHS[0].month && !touched;
   const many = item.photos.length > 1;
 
   return (
@@ -134,7 +153,10 @@ function PhotoCarousel({
           const step = second.offsetLeft - first.offsetLeft;
           const i = Math.min(item.photos.length - 1, Math.max(0, Math.round(el.scrollLeft / step)));
           if (i !== current) onChange(i);
-          if (el.scrollLeft > 8) setTouched(true);
+          if (el.scrollLeft > 8 && !hintSeen) {
+            markHintSeen();
+            setTouched(true);
+          }
         }}
         className="flex w-full snap-x snap-mandatory gap-4 overflow-x-auto px-[18vw] py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
@@ -160,7 +182,7 @@ function PhotoCarousel({
       {many && (
         <>
           <AnimatePresence>
-            {!touched && current === 0 && (
+            {showHint && current === 0 && (
               <motion.div
                 exit={{ opacity: 0 }}
                 animate={{ x: [0, 10, 0] }}
