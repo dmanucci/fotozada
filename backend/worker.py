@@ -8,6 +8,8 @@ saiu da impressora antes de pegar o próximo. Nunca marca "done" enquanto o
 papel ainda está no buffer da impressora.
 """
 
+from __future__ import annotations
+
 import os
 import re
 import asyncio
@@ -36,12 +38,17 @@ STORAGE_BUCKET  = os.environ.get("STORAGE_BUCKET", "prints")
 MAX_RETRIES     = int(os.environ.get("MAX_RETRIES", "3"))
 RETRY_DELAY     = int(os.environ.get("RETRY_DELAY", "5"))
 SIGNED_URL_TTL  = 300   # segundos
-CUPS_POLL_INTERVAL    = float(os.environ.get("CUPS_POLL_INTERVAL", "3"))    # s entre polls
+CUPS_POLL_INTERVAL    = float(os.environ.get("CUPS_POLL_INTERVAL", "1"))    # s entre polls
 CUPS_TIMEOUT          = float(os.environ.get("CUPS_TIMEOUT", "300"))        # 5 min max
 # Tempo fixo aguardado após o job sair do CUPS antes de pegar o próximo.
 # Cobre o caso em que lpstat -p não retorna "idle" (varia por driver/locale).
 # DNP RX1 ~65s por 10x15. Ajuste com PRINT_COMPLETE_DELAY no .env.
 PRINT_COMPLETE_DELAY  = float(os.environ.get("PRINT_COMPLETE_DELAY", "30"))  # segundos
+
+# Rede de segurança do Realtime: se o websocket cair sem avisar, é este poll
+# que acha o job. Antes era 30s fixos (= até 30s de atraso extra); 5s custa
+# uma query leve e limita o pior caso.
+POLL_INTERVAL = float(os.environ.get("POLL_INTERVAL", "5"))
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -56,11 +63,35 @@ log = logging.getLogger("worker")
 
 supabase: AsyncClient = None
 job_queue: asyncio.Queue = asyncio.Queue()
+# ids já na fila (ou em processamento): evita enfileirar o mesmo job de novo
+# a cada poll enquanto ele ainda está esperando a vez.
+enqueued_ids: set = set()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def enqueue(job: dict) -> bool:
+    """Põe o job na fila uma única vez. Retorna False se já estava."""
+    job_id = job.get("id")
+    if not job_id or job_id in enqueued_ids:
+        return False
+    enqueued_ids.add(job_id)
+    job_queue.put_nowait(job)
+    return True
+
+
+def seconds_since(iso: str | None) -> float | None:
+    """Segundos desde um timestamp ISO do banco (None se ausente/ilegível)."""
+    if not iso:
+        return None
+    try:
+        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        return (datetime.now(timezone.utc) - dt).total_seconds()
+    except ValueError:
+        return None
 
 
 async def get_signed_url(composed_path: str) -> str:
@@ -156,14 +187,15 @@ def _cups_job_state(cups_job_id: int) -> str:
 
 
 
-async def wait_for_cups_job(cups_job_id: int) -> None:
+async def wait_for_cups_job(cups_job_id: int) -> tuple[float, float]:
     """
     Fase 1 — aguarda o job sumir da fila do CUPS (dados enviados ao hardware).
     Fase 2 — aguarda impressora idle OU PRINT_COMPLETE_DELAY segundos,
               o que vier primeiro. Fallback garante avanço mesmo se lpstat -p
               não retornar palavra reconhecida no locale do sistema.
     """
-    deadline = time.monotonic() + CUPS_TIMEOUT
+    phase_start = time.monotonic()
+    deadline = phase_start + CUPS_TIMEOUT
     loop = asyncio.get_running_loop()
 
     # ── Fase 1: job na fila do CUPS ──────────────────────────────────────────
@@ -187,6 +219,8 @@ async def wait_for_cups_job(cups_job_id: int) -> None:
     else:
         raise RuntimeError(f"Timeout ({CUPS_TIMEOUT}s) aguardando CUPS job {cups_job_id}")
 
+    cups_seconds = time.monotonic() - phase_start
+
     # ── Fase 2: aguarda hardware terminar ────────────────────────────────────
     # A DNP aceita os dados no buffer interno e imediatamente reporta "inativa"
     # para o CUPS, mas o papel ainda está sendo processado. Não há como detectar
@@ -194,6 +228,7 @@ async def wait_for_cups_job(cups_job_id: int) -> None:
     log.info(f"  Aguardando impressão física ({PRINT_COMPLETE_DELAY:.0f}s)…")
     await asyncio.sleep(PRINT_COMPLETE_DELAY)
     log.info("  Impressão concluída.")
+    return cups_seconds, PRINT_COMPLETE_DELAY
 
 
 async def update_job(job_id: str, **fields) -> None:
@@ -216,7 +251,12 @@ async def process_job(job: dict) -> None:
         log.info(f"  Job {job_id} já está '{current_status}', ignorando.")
         return
 
+    # Atraso entre o job ser criado no banco (o cliente já terminou o upload)
+    # e o worker começar a tratá-lo: soma espera na fila + falha do Realtime.
+    pickup_lag = seconds_since(job.get("created_at"))
     log.info(f"── Job {job_id}")
+    if pickup_lag is not None:
+        log.info(f"  pickup_lag    : {pickup_lag:.1f}s (criado no banco → worker)")
     log.info(f"  composed_path : {composed_path}")
     log.info(f"  layout        : {layout}")
     log.info(f"  copies        : {copies}")
@@ -227,10 +267,12 @@ async def process_job(job: dict) -> None:
         return
 
     # Atualiza status + gera URL assinada em paralelo
+    t_prep = time.monotonic()
     _, url = await asyncio.gather(
         update_job(job_id, status="printing", printing_at=now_iso()),
         get_signed_url(composed_path),
     )
+    prep_s = time.monotonic() - t_prep
 
     tmp_path = None
     start    = time.monotonic()
@@ -249,17 +291,28 @@ async def process_job(job: dict) -> None:
             loop = asyncio.get_running_loop()
 
             # 1. Download
+            t0 = time.monotonic()
             await loop.run_in_executor(None, download_file, url, tmp_path)
+            download_s = time.monotonic() - t0
 
             # 2. Envia ao CUPS — retorna job ID imediatamente
+            t0 = time.monotonic()
             cups_job_id = await loop.run_in_executor(
                 None, submit_to_cups, tmp_path, copies, layout
             )
+            lp_s = time.monotonic() - t0
 
             # 3. Espera o papel sair — só depois marca como done
-            await wait_for_cups_job(cups_job_id)
+            cups_s, hw_delay_s = await wait_for_cups_job(cups_job_id)
 
             elapsed_ms = int((time.monotonic() - start) * 1000)
+            log.info(
+                "  ⏱  "
+                + (f"lag={pickup_lag:.1f}s " if pickup_lag is not None else "")
+                + f"prep={prep_s:.1f}s download={download_s:.1f}s lp={lp_s:.1f}s "
+                f"cups_fila={cups_s:.1f}s espera_fixa={hw_delay_s:.0f}s "
+                f"total={elapsed_ms / 1000:.1f}s"
+            )
             await update_job(
                 job_id,
                 status="done",
@@ -290,9 +343,9 @@ async def process_job(job: dict) -> None:
 # ── Polling de backup ─────────────────────────────────────────────────────────
 
 async def poll_queued_jobs() -> None:
-    """Verifica jobs queued a cada 30s como fallback do Realtime."""
+    """Verifica jobs queued a cada POLL_INTERVAL s como fallback do Realtime."""
     while True:
-        await asyncio.sleep(30)
+        await asyncio.sleep(POLL_INTERVAL)
         try:
             res = await (
                 supabase.table("print_jobs")
@@ -301,10 +354,10 @@ async def poll_queued_jobs() -> None:
                 .order("created_at")
                 .execute()
             )
-            if res.data:
-                log.info(f"Polling: {len(res.data)} job(s) na fila")
-                for job in res.data:
-                    job_queue.put_nowait(job)
+            # só loga quando o poll achou algo que o Realtime NÃO entregou
+            novos = [job for job in (res.data or []) if enqueue(job)]
+            if novos:
+                log.info(f"Polling: {len(novos)} job(s) novo(s) (Realtime não avisou)")
         except Exception as e:
             log.warning(f"Polling falhou: {e}")
 
@@ -321,6 +374,7 @@ async def worker_loop() -> None:
         except Exception as e:
             log.exception(f"Erro inesperado no job {job.get('id')}: {e}")
         finally:
+            enqueued_ids.discard(job.get("id"))
             job_queue.task_done()
 
 
@@ -344,7 +398,7 @@ async def enqueue_pending_jobs() -> None:
         if job.get("status") == "printing":
             await update_job(job["id"], status="queued")
             job["status"] = "queued"
-        job_queue.put_nowait(job)
+        enqueue(job)
 
 
 # ── Realtime callback ─────────────────────────────────────────────────────────
@@ -353,8 +407,8 @@ def on_new_job(payload: dict) -> None:
     job = payload.get("record") or payload.get("new") or {}
     if not job.get("id"):
         return
-    log.info(f"Novo job recebido via Realtime: {job['id']}")
-    job_queue.put_nowait(job)
+    if enqueue(job):
+        log.info(f"Novo job recebido via Realtime: {job['id']}")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -368,6 +422,8 @@ async def main() -> None:
     log.info(f"  Bucket          : {STORAGE_BUCKET}")
     log.info(f"  Retries         : {MAX_RETRIES} (intervalo {RETRY_DELAY}s)")
     log.info(f"  CUPS poll       : {CUPS_POLL_INTERVAL}s  timeout {CUPS_TIMEOUT}s")
+    log.info(f"  Poll de backup  : {POLL_INTERVAL}s")
+    log.info(f"  Espera fixa     : {PRINT_COMPLETE_DELAY:.0f}s por job")
     log.info("=" * 48 + "\n")
 
     supabase = await create_async_client(SUPABASE_URL, SUPABASE_KEY)

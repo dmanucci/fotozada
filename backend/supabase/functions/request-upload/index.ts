@@ -56,32 +56,37 @@ Deno.serve(async (req) => {
     );
   }
 
-  const out: any[] = [];
-  for (const it of items) {
-    const idx = Number(it.idx);
-    const base = `${kioskId}/${uploadId}/item-${idx}`;
-    const need = PHOTOS_PER_LAYOUT[it.layout];
+  // Todas as URLs assinadas de todos os itens em paralelo (antes eram uma
+  // chamada ao Storage por vez, em fila).
+  const sign = (path: string) => admin.storage.from("prints").createSignedUploadUrl(path);
+  let out: any[];
+  try {
+    out = await Promise.all(
+      items.map(async (it: any) => {
+        const idx = Number(it.idx);
+        const base = `${kioskId}/${uploadId}/item-${idx}`;
+        const need = PHOTOS_PER_LAYOUT[it.layout];
 
-    const photos: any[] = [];
-    for (let p = 0; p < need; p++) {
-      const path = `${base}/photo-${p}.jpg`;
-      const { data, error } = await admin.storage.from("prints").createSignedUploadUrl(path);
-      if (error) return json({ error: "sign_failed", detail: error.message }, 500);
-      photos.push({ idx: p, path: data.path, token: data.token });
-    }
+        const [photos, composed] = await Promise.all([
+          Promise.all(
+            Array.from({ length: need }, async (_, p) => {
+              const { data, error } = await sign(`${base}/photo-${p}.jpg`);
+              if (error) throw new Error(error.message);
+              return { idx: p, path: data.path, token: data.token };
+            }),
+          ),
+          // O front reencoda a folha para JPEG (~6x menor que PNG).
+          sign(`${base}/composed.jpg`).then(({ data, error }) => {
+            if (error) throw new Error(error.message);
+            return { path: data.path, token: data.token };
+          }),
+        ]);
 
-    const composedPath = `${base}/composed.png`;
-    const { data: cData, error: cErr } = await admin.storage
-      .from("prints")
-      .createSignedUploadUrl(composedPath);
-    if (cErr) return json({ error: "sign_failed", detail: cErr.message }, 500);
-
-    out.push({
-      idx,
-      layout: it.layout,
-      photos,
-      composed: { path: cData.path, token: cData.token },
-    });
+        return { idx, layout: it.layout, photos, composed };
+      }),
+    );
+  } catch (e) {
+    return json({ error: "sign_failed", detail: (e as Error).message }, 500);
   }
 
   return json({ upload_id: uploadId, items: out });
