@@ -9,7 +9,7 @@ import {
 } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronRight, MessageCircleHeart, SkipForward } from "lucide-react";
-import { FairyFlight, GrowthRuler, Petals } from "./story-extras";
+import { Petals } from "./story-extras";
 import { FINAL_LABEL, STORY_MONTHS, type StoryMonth } from "../lib/story";
 
 const TOTAL = STORY_MONTHS.length + 2; // intro + meses + final
@@ -346,7 +346,6 @@ export function StoryStep({ onStart }: { onStart: () => void }) {
       exit={{ opacity: 0, y: -30 }}
       className="relative flex-1"
     >
-      <FairyFlight progress={scrollYProgress} />
       <div ref={container} className="absolute inset-0 flex snap-y snap-mandatory flex-col overflow-y-auto overscroll-contain">
         <IntroScene container={container} onSkip={onStart} />
         {STORY_MONTHS.map((m) => (
@@ -366,7 +365,6 @@ export function StoryStep({ onStart }: { onStart: () => void }) {
           {chip}
         </motion.div>
       </div>
-      <GrowthRuler progress={scrollYProgress} />
     </motion.div>
   );
 }
