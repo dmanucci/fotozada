@@ -50,6 +50,9 @@ verify_jwt = false
 [functions.create-print-job]
 verify_jwt = false
 
+[functions.create-guest-message]
+verify_jwt = false
+
 [functions.simulate-printer]
 # Only advances already-queued jobs; harmless to trigger. Kept open so the
 # admin "simular agora" button and a cron ping can both reach it.

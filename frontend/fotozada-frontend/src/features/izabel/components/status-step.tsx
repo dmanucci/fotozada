@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { PartyPopper, Printer, Users } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Download, MessageCircleHeart, PartyPopper, Printer, Users } from "lucide-react";
+import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { LAYOUTS } from "../lib/layouts";
 import { PRINT_COMPLETE_DELAY_SECONDS } from "../../print/lib/print-timing";
@@ -8,6 +10,7 @@ import { useBatchStatus } from "../../print/hooks/use-batch-status";
 import { useQueuePosition } from "../../print/hooks/use-queue-position";
 import type { JobStatus } from "../../print/types";
 import type { BatchResult } from "../types";
+import { savePhoto } from "../lib/save-photo";
 
 const LABEL: Record<JobStatus, string> = {
   pending_approval: "Aguardando",
@@ -44,10 +47,13 @@ export function StatusStep({
   result,
   submitting,
   onNew,
+  photoUrls = [],
 }: {
   result: BatchResult | null;
   submitting: boolean;
   onNew: () => void;
+  // pré-visualizações das fotos desta sessão (vazio após um refresh da página)
+  photoUrls?: string[];
 }) {
   const statuses = useBatchStatus(
     result?.batchId ?? "",
@@ -194,6 +200,42 @@ export function StatusStep({
             );
           })}
         </div>
+      )}
+
+      {!submitting && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="w-full max-w-xs space-y-2 rounded-2xl bg-white/70 p-4 text-center"
+        >
+          <p className="font-[Nunito] text-lg font-black text-[#6a3a64]">
+            Agora você faz parte da história 💗
+          </p>
+          <p className="text-xs font-semibold text-[#8b5580]">
+            Leve a sua foto também no celular e deixe um recado para a Izabel.
+          </p>
+          {photoUrls.map((url, i) => (
+            <button
+              key={url}
+              onClick={() =>
+                savePhoto(url, `izabel-1-aninho-${i + 1}.png`).catch(() =>
+                  toast.error("Não consegui salvar a foto. Tente de novo."),
+                )
+              }
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#ef8fb0] px-4 py-2.5 text-sm font-extrabold text-white shadow-[3px_3px_0_#c9709a]"
+            >
+              <Download className="h-4 w-4" />
+              Salvar no celular{photoUrls.length > 1 ? ` (${i + 1})` : ""}
+            </button>
+          ))}
+          <Link
+            to={`/izabel/mural${window.location.search}`}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-[#8b5580] bg-white px-4 py-2.5 text-sm font-extrabold text-[#6a3a64]"
+          >
+            <MessageCircleHeart className="h-4 w-4" /> Deixar um recado
+          </Link>
+        </motion.div>
       )}
 
       <AnimatePresence>

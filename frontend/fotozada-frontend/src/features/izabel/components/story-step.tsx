@@ -7,7 +7,9 @@ import {
   useTransform,
   type MotionValue,
 } from "framer-motion";
-import { ChevronDown, ChevronRight, SkipForward } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ChevronDown, ChevronRight, MessageCircleHeart, SkipForward } from "lucide-react";
+import { FairyFlight, GrowthRuler, Petals } from "./story-extras";
 import { FINAL_LABEL, STORY_MONTHS, type StoryMonth } from "../lib/story";
 
 const TOTAL = STORY_MONTHS.length + 2; // intro + meses + final
@@ -286,10 +288,13 @@ function MonthContent({
 
 function FinalScene({ container, onStart }: { container: React.RefObject<HTMLDivElement | null>; onStart: () => void }) {
   const { ref, progress } = useSceneProgress(container);
+  const near = useNear(ref, container);
+  const navigate = useNavigate();
   const fly = useTransform(progress, [0, 0.5], [160, 0]);
   const fade = useTransform(progress, [0, 0.4], [0, 1]);
   return (
-    <section ref={ref} className="relative flex h-full shrink-0 snap-center flex-col items-center justify-center gap-4 overflow-hidden px-6 text-center">
+    <section ref={ref} data-near={near} className="relative flex h-full shrink-0 snap-center flex-col items-center justify-center gap-4 overflow-hidden px-6 text-center">
+      <Petals />
       <img src="/izabel/flores.webp" alt="" aria-hidden decoding="async" className="pointer-events-none absolute inset-x-0 bottom-0 w-full opacity-70" />
       <Butterfly name="borboleta-1" progress={progress} drift={50} className="left-[8%] top-[10%]" />
       <Butterfly name="borboleta-3" progress={progress} drift={80} className="right-[8%] top-[18%]" />
@@ -313,6 +318,12 @@ function FinalScene({ container, onStart }: { container: React.RefObject<HTMLDiv
       >
         TIRAR MINHA FOTO
       </motion.button>
+      <button
+        onClick={() => navigate(`/izabel/mural${window.location.search}`)}
+        className="relative flex items-center gap-2 rounded-full border-2 border-[#8b5580] bg-white px-5 py-2.5 text-sm font-extrabold text-[#6a3a64] shadow-[3px_3px_0_#c9709a] active:translate-x-px active:translate-y-px"
+      >
+        <MessageCircleHeart className="h-4 w-4" /> Deixar um recado
+      </button>
     </section>
   );
 }
@@ -335,6 +346,7 @@ export function StoryStep({ onStart }: { onStart: () => void }) {
       exit={{ opacity: 0, y: -30 }}
       className="relative flex-1"
     >
+      <FairyFlight progress={scrollYProgress} />
       <div ref={container} className="absolute inset-0 flex snap-y snap-mandatory flex-col overflow-y-auto overscroll-contain">
         <IntroScene container={container} onSkip={onStart} />
         {STORY_MONTHS.map((m) => (
@@ -354,14 +366,7 @@ export function StoryStep({ onStart }: { onStart: () => void }) {
           {chip}
         </motion.div>
       </div>
-      <div className="pointer-events-none absolute right-3 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5">
-        {Array.from({ length: TOTAL }).map((_, i) => (
-          <span
-            key={i}
-            className={`w-1.5 rounded-full transition-all ${i === index ? "h-5 bg-[#ef8fb0]" : i < index ? "h-1.5 bg-[#8b5580]/60" : "h-1.5 bg-[#8b5580]/20"}`}
-          />
-        ))}
-      </div>
+      <GrowthRuler progress={scrollYProgress} />
     </motion.div>
   );
 }

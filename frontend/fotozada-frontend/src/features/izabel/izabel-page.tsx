@@ -13,6 +13,8 @@ import { LayoutStep } from "./components/layout-step";
 import { PhotoStep } from "./components/photo-step";
 import { ReviewStep } from "./components/review-step";
 import { StatusStep } from "./components/status-step";
+import { SoundButton } from "./components/sound-button";
+import { useLullaby } from "./lib/lullaby";
 
 // Sem etapa "Moldura": cada formato tem um único design neste evento.
 // "story" é o storytelling de abertura (scroll, mês a mês) antes do fluxo de foto.
@@ -25,6 +27,7 @@ export function IzabelPage() {
     [],
   );
   const submit = useSubmitBatch();
+  const music = useLullaby();
 
   // A batch that was still printing survives a refresh/tab close — resume
   // straight to the status screen instead of losing track of it.
@@ -97,6 +100,8 @@ export function IzabelPage() {
       className="relative flex h-svh flex-col overflow-hidden bg-[#fff5f7] bg-cover bg-center"
       style={{ backgroundImage: "url(/izabel/aquarela.webp)" }}
     >
+      <SoundButton on={music.on} onToggle={music.toggle} />
+
       <div className="relative z-20 h-12 pb-2 pt-14">
         {step !== "story" && (
           <motion.div
@@ -144,7 +149,13 @@ export function IzabelPage() {
             />
           )}
           {step === "status" && (
-            <StatusStep key="status" result={result} submitting={submitting} onNew={reset} />
+            <StatusStep
+              key="status"
+              result={result}
+              submitting={submitting}
+              onNew={reset}
+              photoUrls={items.map((i) => i.composedUrl)}
+            />
           )}
         </AnimatePresence>
       </div>

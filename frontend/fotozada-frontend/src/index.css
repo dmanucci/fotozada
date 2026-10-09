@@ -103,3 +103,15 @@
 }
 .flutter { animation: flutter 5s ease-in-out infinite; will-change: transform; }
 [data-near="false"] .flutter { animation-play-state: paused; }
+
+/* Pétalas da cena final. */
+@keyframes petal-fall {
+  0% { transform: translate3d(0, -10vh, 0) rotate(0deg); }
+  100% { transform: translate3d(var(--drift, 0px), 110vh, 0) rotate(540deg); }
+}
+.petal { animation: petal-fall linear infinite; will-change: transform; }
+[data-near="false"] .petal { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+  .petal, .flutter { animation: none; }
+}
