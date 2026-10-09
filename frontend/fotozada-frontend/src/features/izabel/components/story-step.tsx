@@ -1,12 +1,13 @@
 import { useRef, useState } from "react";
 import {
+  AnimatePresence,
   motion,
   useMotionValueEvent,
   useScroll,
   useTransform,
   type MotionValue,
 } from "framer-motion";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronRight, SkipForward } from "lucide-react";
 import { FINAL_LABEL, STORY_MONTHS, type StoryMonth } from "../lib/story";
 
 const TOTAL = STORY_MONTHS.length + 2; // intro + meses + final
@@ -66,15 +67,20 @@ function IntroScene({ container, onSkip }: { container: React.RefObject<HTMLDivE
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5 }}
-        className="max-w-xs text-base leading-relaxed text-[#8b5580]"
+        className="max-w-xs font-[Nunito] text-xl font-extrabold leading-snug text-[#4a2545]"
       >
-        Role para ver a Izabel crescer, mês a mês, até o primeiro aninho.
+        Role para ver a <span className="text-[#d63f86]">Izabel</span> crescer,{" "}
+        <span className="text-[#6d3fb5]">mês a mês</span>, até o{" "}
+        <span className="whitespace-nowrap rounded-md bg-[#ffd9e8] px-1.5 text-[#c2185b]">primeiro aninho!</span>
       </motion.p>
       <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 1.6, repeat: Infinity }} className="text-[#ef8fb0]">
         <ChevronDown className="h-8 w-8" />
       </motion.div>
-      <button onClick={onSkip} className="relative text-sm text-[#8b5580]/70 underline underline-offset-4">
-        Pular para as fotos
+      <button
+        onClick={onSkip}
+        className="relative flex items-center gap-2 rounded-full border-2 border-[#8b5580] bg-white px-5 py-2.5 text-sm font-extrabold text-[#6a3a64] shadow-[3px_3px_0_#c9709a] active:translate-x-px active:translate-y-px"
+      >
+        <SkipForward className="h-4 w-4" /> Pular para as fotos
       </button>
       <img src="/izabel/flores.webp" alt="" aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 w-full opacity-70" />
     </section>
@@ -82,44 +88,80 @@ function IntroScene({ container, onSkip }: { container: React.RefObject<HTMLDivE
 }
 
 // Carrossel horizontal das fotos de um mês. Usa scroll-snap nativo: o swipe
-// lateral fica aqui dentro e o gesto vertical continua pulando de mês.
-function PhotoCarousel({ item }: { item: StoryMonth }) {
-  const track = useRef<HTMLDivElement>(null);
-  const [current, setCurrent] = useState(0);
+// lateral fica aqui dentro e o gesto vertical continua pulando de mês. A
+// próxima foto aparece espiando na lateral (e um aviso pulsa) para mostrar
+// que dá para arrastar.
+function PhotoCarousel({
+  item,
+  current,
+  onChange,
+}: {
+  item: StoryMonth;
+  current: number;
+  onChange: (i: number) => void;
+}) {
+  const [touched, setTouched] = useState(false);
   const many = item.photos.length > 1;
 
   return (
-    <div className="relative">
-      <div className="rounded-[2rem] bg-white p-2.5 shadow-[0_12px_40px_-8px_rgba(139,85,128,0.45)]">
-        <div
-          ref={track}
-          onScroll={(e) => {
-            const el = e.currentTarget;
-            setCurrent(Math.round(el.scrollLeft / el.clientWidth));
-          }}
-          className="flex w-[68vw] max-w-72 snap-x snap-mandatory overflow-x-auto rounded-3xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {item.photos.map((src, i) => (
+    <div className="relative w-full">
+      <div
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          const first = el.children[0] as HTMLElement | undefined;
+          const second = el.children[1] as HTMLElement | undefined;
+          if (!first || !second) return;
+          const step = second.offsetLeft - first.offsetLeft;
+          const i = Math.min(item.photos.length - 1, Math.max(0, Math.round(el.scrollLeft / step)));
+          if (i !== current) onChange(i);
+          if (el.scrollLeft > 8) setTouched(true);
+        }}
+        className="flex w-full snap-x snap-mandatory gap-4 overflow-x-auto px-[18vw] py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {item.photos.map((p, i) => (
+          <div
+            key={p.src}
+            className={`w-[64vw] max-w-64 shrink-0 snap-center rounded-[2rem] bg-white p-2.5 shadow-[0_12px_40px_-8px_rgba(139,85,128,0.45)] transition-all duration-300 ${
+              i === current ? "scale-100 opacity-100" : "scale-90 opacity-60"
+            }`}
+          >
             <img
-              key={src}
-              src={src}
+              src={p.src}
               alt={`Izabel — ${item.label} (${i + 1} de ${item.photos.length})`}
               loading="lazy"
               draggable={false}
-              className="aspect-4/5 w-full shrink-0 snap-center object-cover"
+              className="aspect-4/5 w-full rounded-3xl object-cover"
             />
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
+
       {many && (
-        <div className="absolute -bottom-5 left-0 right-0 flex justify-center gap-1.5">
-          {item.photos.map((_, i) => (
-            <span
-              key={i}
-              className={`h-1.5 rounded-full transition-all ${i === current ? "w-4 bg-[#ef8fb0]" : "w-1.5 bg-[#8b5580]/30"}`}
-            />
-          ))}
-        </div>
+        <>
+          <AnimatePresence>
+            {!touched && current === 0 && (
+              <motion.div
+                exit={{ opacity: 0 }}
+                animate={{ x: [0, 10, 0] }}
+                transition={{ duration: 1.3, repeat: Infinity, ease: "easeInOut" }}
+                className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-full bg-[#d63f86] py-1.5 pl-3 pr-1.5 text-xs font-extrabold text-white shadow-lg"
+              >
+                mais fotos <ChevronRight className="h-4 w-4" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <div className="mt-1 flex items-center justify-center gap-1.5">
+            {item.photos.map((_, i) => (
+              <span
+                key={i}
+                className={`h-1.5 rounded-full transition-all ${i === current ? "w-5 bg-[#d63f86]" : "w-1.5 bg-[#8b5580]/35"}`}
+              />
+            ))}
+            <span className="ml-2 text-xs font-bold text-[#6a3a64]">
+              {current + 1}/{item.photos.length}
+            </span>
+          </div>
+        </>
       )}
     </div>
   );
@@ -133,18 +175,19 @@ function MonthScene({
   container: React.RefObject<HTMLDivElement | null>;
 }) {
   const { ref, progress } = useSceneProgress(container);
+  const [current, setCurrent] = useState(0);
   // Parallax: o numeral de fundo anda mais devagar que a foto.
   const numY = useTransform(progress, [0, 1], [120, -120]);
   const photoY = useTransform(progress, [0, 1], [50, -50]);
   const photoOpacity = useTransform(progress, [0.1, 0.4, 0.6, 0.9], [0, 1, 1, 0]);
-  // "Crescer": a moldura aumenta um pouco a cada mês.
-  const grow = 0.78 + (item.month / (STORY_MONTHS.length)) * 0.22;
-  const tilt = item.month % 2 === 0 ? -3 : 3;
+  // "Crescer": as fotos aumentam um pouco a cada mês.
+  const grow = 0.82 + (item.month / STORY_MONTHS.length) * 0.18;
   const butterfly = BUTTERFLIES[item.month % BUTTERFLIES.length];
   const side = item.month % 2 === 0 ? "right-[6%] top-[12%]" : "left-[6%] top-[16%]";
+  const caption = item.photos[current]?.caption ?? "";
 
   return (
-    <section ref={ref} className="relative flex h-full shrink-0 snap-center flex-col items-center justify-center gap-5 overflow-hidden px-6">
+    <section ref={ref} className="relative flex h-full shrink-0 snap-center flex-col items-center justify-center gap-4 overflow-hidden">
       <motion.span
         aria-hidden
         style={{ y: numY }}
@@ -154,13 +197,26 @@ function MonthScene({
       </motion.span>
       <Butterfly name={butterfly} progress={progress} drift={70} className={side} />
 
-      <motion.div style={{ y: photoY, opacity: photoOpacity, scale: grow, rotate: tilt }} className="relative">
-        <PhotoCarousel item={item} />
+      <motion.div style={{ y: photoY, opacity: photoOpacity, scale: grow }} className="relative w-full">
+        <PhotoCarousel item={item} current={current} onChange={setCurrent} />
       </motion.div>
 
-      <motion.div style={{ opacity: photoOpacity }} className="relative text-center">
-        <h3 className="font-[Nunito] text-3xl font-black text-[#8b5580]">{item.label}</h3>
-        <p className="mt-1 text-sm text-[#8b5580]/70">{item.caption}</p>
+      <motion.div style={{ opacity: photoOpacity }} className="relative px-8 text-center">
+        <h3 className="font-[Nunito] text-3xl font-black text-[#6a3a64]">{item.label}</h3>
+        <div className="mt-1 h-12">
+          <AnimatePresence mode="wait">
+            <motion.p
+              key={caption}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.25 }}
+              className="text-base font-semibold text-[#8b5580]"
+            >
+              {caption}
+            </motion.p>
+          </AnimatePresence>
+        </div>
       </motion.div>
     </section>
   );
