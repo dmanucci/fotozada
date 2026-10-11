@@ -57,6 +57,12 @@ REALTIME_GRACE        = float(os.environ.get("REALTIME_GRACE", "45"))   # s fora
 WATCHDOG_INTERVAL     = 5      # s entre checagens
 MIN_UPTIME_RESTART    = 120    # s: não reinicia em laço se o Realtime estiver bloqueado na rede
 
+# O 4G do Pi tem picos aleatórios: uma chamada normal leva ~0,4s, mas algumas
+# levam 5–8s ou travam por 40s. Em vez de esperar o timeout padrão, cada
+# chamada ao Supabase tem prazo curto e tenta de novo numa conexão nova.
+API_TIMEOUTS  = (3.0, 4.0, 6.0, 8.0)   # prazo de cada tentativa (s)
+RECHECK_AFTER = 3.0                    # só rechecar o status no banco se o job esperou isso na fila
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 
 logging.basicConfig(
@@ -119,6 +125,7 @@ def enqueue(job: dict) -> bool:
     if not job_id or job_id in enqueued_ids:
         return False
     enqueued_ids.add(job_id)
+    job["_t_enq"] = time.monotonic()
     job_queue.put_nowait(job)
     return True
 
@@ -134,9 +141,35 @@ def seconds_since(iso: str | None) -> float | None:
         return None
 
 
+async def api_call(factory, what: str, timeouts=None):
+    """Roda uma chamada ao Supabase com prazo curto e novas tentativas.
+
+    `factory` cria a coroutine a cada tentativa (uma conexão nova a cada vez,
+    porque a anterior é cancelada). Só use com operações idempotentes.
+    """
+    timeouts = timeouts or API_TIMEOUTS
+    for n, limit in enumerate(timeouts, start=1):
+        try:
+            return await asyncio.wait_for(factory(), limit)
+        except Exception as e:  # inclui TimeoutError e erros do httpx
+            if n == len(timeouts):
+                raise
+            log.warning(f"  {what}: sem resposta em {limit:.0f}s ({e!r}), tentando de novo ({n}/{len(timeouts) - 1})")
+            await asyncio.sleep(0.3)
+
+
+async def settle(task) -> None:
+    """Espera uma tarefa de fundo terminar, sem deixar a falha dela derrubar o job."""
+    try:
+        await task
+    except Exception as e:
+        log.warning(f"  atualização de status em segundo plano falhou: {e!r}")
+
+
 async def get_signed_url(composed_path: str) -> str:
-    res = await supabase.storage.from_(STORAGE_BUCKET).create_signed_url(
-        composed_path, SIGNED_URL_TTL
+    res = await api_call(
+        lambda: supabase.storage.from_(STORAGE_BUCKET).create_signed_url(composed_path, SIGNED_URL_TTL),
+        "url assinada",
     )
     url = res.get("signedURL") or res.get("signed_url")
     if not url:
@@ -145,7 +178,7 @@ async def get_signed_url(composed_path: str) -> str:
 
 
 def download_file(url: str, dest: str) -> None:
-    with urllib.request.urlopen(url, timeout=30) as response:
+    with urllib.request.urlopen(url, timeout=15) as response:
         with open(dest, "wb") as f:
             f.write(response.read())
     size_kb = Path(dest).stat().st_size // 1024
@@ -273,7 +306,10 @@ async def wait_for_cups_job(cups_job_id: int) -> tuple[float, float]:
 
 async def update_job(job_id: str, **fields) -> None:
     fields["updated_at"] = now_iso()
-    await supabase.table("print_jobs").update(fields).eq("id", job_id).execute()
+    await api_call(
+        lambda: supabase.table("print_jobs").update(fields).eq("id", job_id).execute(),
+        "atualizar job",
+    )
 
 
 # ── Processamento de um job ───────────────────────────────────────────────────
@@ -284,12 +320,22 @@ async def process_job(job: dict) -> None:
     layout        = job.get("layout", "single_10x15")
     copies        = max(1, job.get("copies") or 1)
 
-    # Re-verifica no banco antes de processar (evita duplicatas entre Realtime e polling)
-    check = await supabase.table("print_jobs").select("status").eq("id", job_id).execute()
-    current_status = check.data[0].get("status") if check.data else None
-    if current_status != "queued":
-        log.info(f"  Job {job_id} já está '{current_status}', ignorando.")
-        return
+    # Re-verifica no banco só se o job ESPEROU na fila (ex.: o admin pode ter
+    # cancelado enquanto outra foto imprimia). Um job recém-chegado acabou de
+    # ser lido do banco, então a checagem seria uma ida à rede sem ganho.
+    waited = time.monotonic() - job.get("_t_enq", 0.0)
+    if waited >= RECHECK_AFTER:
+        try:
+            check = await api_call(
+                lambda: supabase.table("print_jobs").select("status").eq("id", job_id).execute(),
+                "checar status",
+            )
+            current_status = check.data[0].get("status") if check.data else None
+            if current_status != "queued":
+                log.info(f"  Job {job_id} já está '{current_status}', ignorando.")
+                return
+        except Exception as e:
+            log.warning(f"  não consegui checar o status ({e!r}); sigo com o job.")
 
     # Atraso entre o job ser criado no banco (o cliente já terminou o upload)
     # e o worker começar a tratá-lo: soma espera na fila + falha do Realtime.
@@ -306,12 +352,19 @@ async def process_job(job: dict) -> None:
         await update_job(job_id, status="error", error="composed_path ausente")
         return
 
-    # Atualiza status + gera URL assinada em paralelo
+    # Marca "printing" em segundo plano: não precisa estar no caminho crítico
+    # (só a URL assinada é necessária para baixar a foto).
     t_prep = time.monotonic()
-    _, url = await asyncio.gather(
-        update_job(job_id, status="printing", printing_at=now_iso()),
-        get_signed_url(composed_path),
-    )
+    status_task = asyncio.create_task(update_job(job_id, status="printing", printing_at=now_iso()))
+    try:
+        url = await get_signed_url(composed_path)
+    except Exception:
+        await settle(status_task)
+        try:  # devolve à fila para o poll tentar de novo em segundos
+            await update_job(job_id, status="queued")
+        except Exception:
+            pass
+        raise
     prep_s = time.monotonic() - t_prep
 
     tmp_path = None
@@ -345,6 +398,7 @@ async def process_job(job: dict) -> None:
             # 3. Espera o papel sair — só depois marca como done
             cups_s, hw_delay_s = await wait_for_cups_job(cups_job_id)
 
+            await settle(status_task)  # "printing" tem de gravar antes de "done"
             elapsed_ms = int((time.monotonic() - start) * 1000)
             log.info(
                 "  ⏱  "
@@ -368,6 +422,7 @@ async def process_job(job: dict) -> None:
                 log.info(f"  Aguardando {RETRY_DELAY}s…")
                 await asyncio.sleep(RETRY_DELAY)
             else:
+                await settle(status_task)
                 await update_job(job_id, status="error", error=str(e)[:500])
                 log.error(f"  ✗ Falhou após {MAX_RETRIES} tentativas.\n")
 
@@ -387,12 +442,13 @@ async def poll_queued_jobs() -> None:
     while True:
         await asyncio.sleep(POLL_INTERVAL)
         try:
-            res = await (
+            res = await asyncio.wait_for(
                 supabase.table("print_jobs")
                 .select("*")
                 .eq("status", "queued")
                 .order("created_at")
-                .execute()
+                .execute(),
+                6.0,  # a próxima checagem é em 5s: não vale esperar uma conexão travada
             )
             # só loga quando o poll achou algo que o Realtime NÃO entregou
             novos = [job for job in (res.data or []) if enqueue(job)]
