@@ -50,6 +50,13 @@ PRINT_COMPLETE_DELAY  = float(os.environ.get("PRINT_COMPLETE_DELAY", "30"))  # s
 # uma query leve e limita o pior caso.
 POLL_INTERVAL = float(os.environ.get("POLL_INTERVAL", "5"))
 
+# Vigia do Realtime: se o websocket cair e a biblioteca não se reinscrever
+# (bug conhecido na reconexão), o worker se reinicia — mas só ocioso, para
+# nunca reimprimir uma foto. O poll de backup cobre o intervalo.
+REALTIME_GRACE        = float(os.environ.get("REALTIME_GRACE", "45"))   # s fora do ar antes de agir
+WATCHDOG_INTERVAL     = 5      # s entre checagens
+MIN_UPTIME_RESTART    = 120    # s: não reinicia em laço se o Realtime estiver bloqueado na rede
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 
 logging.basicConfig(
@@ -69,11 +76,41 @@ job_queue: asyncio.Queue = asyncio.Queue()
 # ids já na fila (ou em processamento): evita enfileirar o mesmo job de novo
 # a cada poll enquanto ele ainda está esperando a vez.
 enqueued_ids: set = set()
+busy = False                       # True enquanto um job está sendo processado
+realtime_channel = None            # canal inscrito (para o vigia checar)
+started_at = time.monotonic()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _flag(value) -> bool:
+    """Aceita propriedade (bool) ou método, conforme a versão da biblioteca."""
+    return bool(value() if callable(value) else value)
+
+
+def realtime_healthy(client, channel) -> bool:
+    """Websocket aberto + canal inscrito + heartbeat vivo."""
+    try:
+        hb = getattr(client, "_heartbeat_task", None)
+        hb_alive = hb is not None and not hb.done()
+        return _flag(client.is_connected) and _flag(channel.is_joined) and hb_alive
+    except Exception:
+        return False
+
+
+def watchdog_decision(healthy: bool, unhealthy_for: float, uptime: float,
+                      is_busy: bool, queue_empty: bool) -> str:
+    """'ok' | 'wait' | 'restart' — só reinicia ocioso, após a carência e sem laço."""
+    if healthy:
+        return "ok"
+    if unhealthy_for < REALTIME_GRACE or uptime < MIN_UPTIME_RESTART:
+        return "wait"
+    if is_busy or not queue_empty:
+        return "wait"
+    return "restart"
 
 
 def enqueue(job: dict) -> bool:
@@ -362,7 +399,7 @@ async def poll_queued_jobs() -> None:
             if novos:
                 log.info(f"Polling: {len(novos)} job(s) novo(s) (Realtime não avisou)")
         except Exception as e:
-            log.warning(f"Polling falhou: {e}")
+            log.warning(f"Polling falhou: {e!r}")
 
 
 # ── Worker loop ───────────────────────────────────────────────────────────────
@@ -370,13 +407,16 @@ async def poll_queued_jobs() -> None:
 async def worker_loop() -> None:
     """Consome um job por vez — garante que a impressora só recebe um job de cada vez."""
     log.info("Worker iniciado.\n")
+    global busy
     while True:
         job = await job_queue.get()
+        busy = True
         try:
             await process_job(job)
         except Exception as e:
             log.exception(f"Erro inesperado no job {job.get('id')}: {e}")
         finally:
+            busy = False
             enqueued_ids.discard(job.get("id"))
             job_queue.task_done()
 
@@ -419,10 +459,37 @@ def on_new_job(payload: dict) -> None:
         log.info(f"Novo job recebido via Realtime: {job['id']}")
 
 
+# ── Vigia do Realtime ─────────────────────────────────────────────────────────
+
+async def realtime_watchdog() -> None:
+    unhealthy_since = None
+    while True:
+        await asyncio.sleep(WATCHDOG_INTERVAL)
+        if supabase is None or realtime_channel is None:
+            continue
+        now = time.monotonic()
+        healthy = realtime_healthy(supabase.realtime, realtime_channel)
+        if healthy:
+            if unhealthy_since is not None:
+                log.info("Realtime voltou ao normal.")
+                unhealthy_since = None
+            continue
+        if unhealthy_since is None:
+            unhealthy_since = now
+            log.warning("Realtime fora do ar — o poll de backup cobre; reinicio se não voltar.")
+        action = watchdog_decision(
+            False, now - unhealthy_since, now - started_at, busy, job_queue.empty()
+        )
+        if action == "restart":
+            log.error("Realtime não voltou; reiniciando o worker (o systemd sobe de novo).")
+            logging.shutdown()
+            os._exit(3)
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 async def main() -> None:
-    global supabase
+    global supabase, realtime_channel
 
     log.info("=" * 48)
     log.info("  Print Worker")
@@ -438,12 +505,14 @@ async def main() -> None:
 
     asyncio.create_task(worker_loop())
     asyncio.create_task(poll_queued_jobs())
+    asyncio.create_task(realtime_watchdog())
     await enqueue_pending_jobs()
 
     log.info("Conectando ao Realtime…")
     await supabase.realtime.connect()
 
     channel = supabase.channel("print-queue")
+    realtime_channel = channel
     channel.on_postgres_changes(
         event="INSERT",
         schema="public",
