@@ -38,8 +38,6 @@ const SHEET_H = { width: 1800, height: 1200 }; // 10×15 paisagem @ 300 DPI
 // Padding branco entre a foto e a moldura, em unidades do viewBox. Separado
 // por eixo E por tipo de moldura — cada design/orientação tem sua própria
 // proporção de slot, então o mesmo valor não serve pros três.
-const V_INSET_X = 6;
-const V_INSET_Y = 2.5;
 
 // --- Tirinha 5×15 (duas tiras espelhadas por folha) ---
 // Arte raster 667×2000 (proporção exata 5×15 cm). Camadas: fundo -> fotos ->
@@ -68,14 +66,18 @@ const STRIP_CELLS = ART_SLOTS.map((r) => ({
 }));
 
 // --- 10×15 Vertical (moldura retrato sobre a folha inteira) ---
-const V_VB_W = 283.5;
-const V_S = SHEET.width / V_VB_W;
-const V_SLOT_RAW = { x: 13.3, y: 83.5, w: 256.3, h: 291.3 };
+// Arte raster 1333×2000 (2:3). Camadas: fundo -> foto -> sobreposição.
+// A moldura rosa mede x 62–1270, y 393–1764 na arte (borda de ~3px).
+const V_ART_W = 1333;
+const V_ART_H = 2000;
+const V_SX = SHEET.width / V_ART_W;
+const V_SY = SHEET.height / V_ART_H;
+const V_FRAME = { x0: 65, y0: 397, x1: 1267, y1: 1760 }; // interior, sem a borda
 const V_CELL = {
-  x: Math.round((V_SLOT_RAW.x + V_INSET_X) * V_S),
-  y: Math.round((V_SLOT_RAW.y + V_INSET_Y) * V_S),
-  w: Math.round((V_SLOT_RAW.w - V_INSET_X * 2) * V_S),
-  h: Math.round((V_SLOT_RAW.h - V_INSET_Y * 2) * V_S),
+  x: Math.round((V_FRAME.x0 + ART_INSET) * V_SX),
+  y: Math.round((V_FRAME.y0 + ART_INSET) * V_SY),
+  w: Math.round((V_FRAME.x1 - V_FRAME.x0 + 1 - ART_INSET * 2) * V_SX),
+  h: Math.round((V_FRAME.y1 - V_FRAME.y0 + 1 - ART_INSET * 2) * V_SY),
 };
 
 // --- 10×15 Horizontal (moldura paisagem sobre a folha inteira) ---
@@ -117,7 +119,8 @@ export const LAYOUTS: IzabelLayoutDef[] = [
     sheet: SHEET,
     cellAspect: V_CELL.w / V_CELL.h,
     cells: [V_CELL],
-    _frameSvg: "/izabel/Vertical/1-bg.svg",
+    _frameSvg: "/izabel/Vertical/fundo.webp",
+    _overlay: "/izabel/Vertical/sobreposicao.webp",
   },
   {
     id: "single_10x15_h",
