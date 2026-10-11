@@ -407,8 +407,13 @@ async def enqueue_pending_jobs() -> None:
 # ── Realtime callback ─────────────────────────────────────────────────────────
 
 def on_new_job(payload: dict) -> None:
-    job = payload.get("record") or payload.get("new") or {}
+    # realtime >= 2.x entrega {"data": {"type", "record", ...}, "ids": [...]};
+    # o formato antigo trazia "record"/"new" direto na raiz. Aceita os dois.
+    data = payload.get("data") or payload
+    job = data.get("record") or data.get("new") or {}
     if not job.get("id"):
+        return
+    if job.get("status") != "queued":  # ex.: pending_approval espera o admin
         return
     if enqueue(job):
         log.info(f"Novo job recebido via Realtime: {job['id']}")
