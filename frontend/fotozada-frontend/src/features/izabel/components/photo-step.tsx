@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import Cropper from "react-easy-crop";
 import type { Area } from "react-easy-crop";
-import { Camera, ChevronLeft, Crop, Loader2, Maximize2, Plus, RotateCcw, Upload } from "lucide-react";
+import { ChevronLeft, Crop, Loader2, Maximize2, Plus, RotateCcw, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -65,6 +66,8 @@ export function PhotoStep({
   const [busy, setBusy] = useState(false);
   // recorte opcional: índice da vaga sendo recortada (null = tela principal)
   const [cropping, setCropping] = useState<number | null>(null);
+  // foto cujas opções (recortar / inteira / trocar) estão abertas
+  const [sheetFor, setSheetFor] = useState<number | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [areaPixels, setAreaPixels] = useState<Area | null>(null);
@@ -243,121 +246,155 @@ export function PhotoStep({
           </button>
 
           <div className="text-center">
-            <h2 className="flex items-center justify-center gap-2 text-lg font-bold text-[#8b5580]">
-              <Camera className="h-5 w-5" />
-              {single ? "Sua foto" : "Suas fotos"}
-              {!single && (
-                <span className="rounded-full bg-[#ef8fb0] px-2.5 py-0.5 text-sm font-bold text-white">
-                  {filled}/{layout.photos}
-                </span>
-              )}
+            <h2 className="text-xl font-extrabold text-[#6a3a64]">
+              {single ? "Escolha sua foto" : `Escolha suas ${layout.photos} fotos`}
             </h2>
-            <p className="mt-1 text-sm text-[#6a3a64]/70">
+            <p className="mt-1 text-sm font-semibold text-[#6a3a64]/80">
               {converting
-                ? "Convertendo foto…"
+                ? "Só um instante…"
                 : filled === 0
                   ? single
-                    ? "Escolha uma foto da galeria"
-                    : `Escolha até ${layout.photos} fotos de uma vez`
-                  : "A foto entra inteira. Toque em Recortar só se quiser ajustar."}
+                    ? "Toque no botão para abrir a galeria"
+                    : "Dá para escolher todas de uma vez"
+                  : allFilled
+                    ? "Toque numa foto para recortar ou trocar"
+                    : `Faltam ${emptyIdx.length} foto${emptyIdx.length > 1 ? "s" : ""}`}
             </p>
           </div>
 
-          {!allFilled && (
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              disabled={converting}
-              onClick={() => openPicker(null)}
-              className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#ef8fb0]/60 bg-white/50 px-4 py-6 disabled:opacity-60"
-            >
-              {converting ? (
-                <Loader2 className="h-8 w-8 animate-spin text-[#8b5580]" />
-              ) : (
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#ef8fb0] shadow-[3px_3px_0_#c9709a]">
-                  <Upload className="h-7 w-7 text-white" />
-                </div>
-              )}
-              <span className="text-base font-bold text-[#6a3a64]">
+          {/* As fotos aparecem como vão sair impressas. Tocar abre as opções. */}
+          <div className="flex flex-col items-center gap-2.5">
+            {slots.map((s, i) => (
+              <button
+                key={i}
+                onClick={() => (s ? setSheetFor(i) : openPicker(i))}
+                aria-label={s ? `Opções da foto ${i + 1}` : `Escolher foto ${i + 1}`}
+                className={`relative overflow-hidden rounded-xl border-2 ${
+                  s
+                    ? "border-[#ef8fb0] bg-white shadow-[3px_3px_0_#c9709a]"
+                    : "border-dashed border-[#ef8fb0]/70 bg-white/50"
+                } ${single ? "w-60" : "w-44"}`}
+                style={{ aspectRatio: layout.cellAspect }}
+              >
+                {s ? (
+                  <img src={s.preview} alt={`Foto ${i + 1}`} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="flex h-full flex-col items-center justify-center gap-0.5 text-[#d63f86]">
+                    <Plus className="h-6 w-6" />
+                    <span className="text-xs font-bold">{single ? "Foto" : `Foto ${i + 1}`}</span>
+                  </span>
+                )}
+                {!single && (
+                  <span className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#d63f86] text-[11px] font-extrabold text-white">
+                    {i + 1}
+                  </span>
+                )}
+                {s?.crop && (
+                  <span className="absolute bottom-1.5 right-1.5 rounded-md bg-white/90 p-1" title="Recortada">
+                    <Crop className="h-3 w-3 text-[#6a3a64]" />
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Um único botão principal: escolhe fotos ou continua. */}
+          <div className="mt-auto pt-2">
+            {allFilled ? (
+              <Button
+                className="w-full rounded-xl bg-[#ef8fb0] py-6 text-base font-extrabold text-white shadow-[3px_3px_0_#c9709a] hover:bg-[#e47aa0]"
+                disabled={busy || converting}
+                onClick={finish}
+              >
+                {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                Continuar
+              </Button>
+            ) : (
+              <Button
+                className="w-full rounded-xl bg-[#ef8fb0] py-6 text-base font-extrabold text-white shadow-[3px_3px_0_#c9709a] hover:bg-[#e47aa0]"
+                disabled={converting}
+                onClick={() => openPicker(null)}
+              >
+                {converting ? (
+                  <Loader2 className="mr-1.5 h-5 w-5 animate-spin" />
+                ) : (
+                  <Upload className="mr-1.5 h-5 w-5" />
+                )}
                 {single
                   ? "Escolher foto"
                   : emptyIdx.length === layout.photos
                     ? `Escolher até ${layout.photos} fotos`
                     : `Escolher mais ${emptyIdx.length === 1 ? "1 foto" : `${emptyIdx.length} fotos`}`}
-              </span>
-              <span className="text-xs text-[#8b5580]/70">Toque para abrir a galeria</span>
-            </motion.button>
-          )}
-
-          <div className="flex flex-col gap-3">
-            {slots.map((s, i) => (
-              <div key={i} className="flex items-center gap-3 rounded-2xl bg-white/70 p-2.5">
-                <div
-                  className={`relative shrink-0 overflow-hidden rounded-lg border-2 ${
-                    s ? "border-[#ef8fb0]/60 bg-white" : "border-dashed border-[#ef8fb0]/50 bg-white/40"
-                  } ${single ? "w-40" : "w-32"}`}
-                  style={{ aspectRatio: layout.cellAspect }}
-                >
-                  {s ? (
-                    <img src={s.preview} alt={`Foto ${i + 1}`} className="h-full w-full object-cover" />
-                  ) : (
-                    <button
-                      onClick={() => openPicker(i)}
-                      aria-label={`Escolher foto ${i + 1}`}
-                      className="flex h-full w-full items-center justify-center text-[#ef8fb0]"
-                    >
-                      <Plus className="h-6 w-6" />
-                    </button>
-                  )}
-                </div>
-                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <span className="text-sm font-extrabold text-[#6a3a64]">
-                    {single ? "Foto" : `Foto ${i + 1}`}
-                    {s && (
-                      <span className="ml-1.5 text-xs font-semibold text-[#8b5580]/70">
-                        {s.crop ? "· recortada" : "· inteira"}
-                      </span>
-                    )}
-                  </span>
-                  {s ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      <button
-                        onClick={() => startCrop(i)}
-                        className="flex items-center gap-1 rounded-lg border-2 border-[#8b5580]/60 bg-white px-2.5 py-1 text-xs font-bold text-[#6a3a64]"
-                      >
-                        <Crop className="h-3.5 w-3.5" /> Recortar
-                      </button>
-                      {s.crop && (
-                        <button
-                          onClick={() => showWhole(i)}
-                          className="flex items-center gap-1 rounded-lg border-2 border-[#8b5580]/60 bg-white px-2.5 py-1 text-xs font-bold text-[#6a3a64]"
-                        >
-                          <Maximize2 className="h-3.5 w-3.5" /> Inteira
-                        </button>
-                      )}
-                      <button
-                        onClick={() => openPicker(i)}
-                        className="flex items-center gap-1 rounded-lg border-2 border-[#8b5580]/60 bg-white px-2.5 py-1 text-xs font-bold text-[#6a3a64]"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" /> Trocar
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-[#8b5580]/70">Toque no + para escolher</span>
-                  )}
-                </div>
-              </div>
-            ))}
+              </Button>
+            )}
           </div>
-
-          <Button
-            className="mt-auto w-full rounded-xl bg-[#ef8fb0] font-bold text-white shadow-[3px_3px_0_#c9709a] hover:bg-[#e47aa0] disabled:opacity-50"
-            disabled={!allFilled || busy || converting}
-            onClick={finish}
-          >
-            {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
-            {allFilled ? "Continuar" : single ? "Escolha uma foto" : `Faltam ${emptyIdx.length} foto${emptyIdx.length > 1 ? "s" : ""}`}
-          </Button>
         </>
+      )}
+
+      {createPortal(
+        <AnimatePresence>
+          {sheetFor !== null && slots[sheetFor] && (
+            <motion.div
+              key="sheet"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-end justify-center bg-[#4a2545]/40"
+              onClick={() => setSheetFor(null)}
+            >
+              <motion.div
+                initial={{ y: 80 }}
+                animate={{ y: 0 }}
+                exit={{ y: 80 }}
+                transition={{ type: "spring", stiffness: 340, damping: 30 }}
+                className="w-full max-w-md space-y-2.5 rounded-t-3xl bg-white p-5 pb-7"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p className="pb-1 text-center text-base font-extrabold text-[#6a3a64]">
+                  {single ? "Sua foto" : `Foto ${sheetFor + 1}`}
+                </p>
+                <button
+                  onClick={() => {
+                    const i = sheetFor;
+                    setSheetFor(null);
+                    startCrop(i);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl border-2 border-[#8b5580]/40 px-4 py-3 text-left font-bold text-[#6a3a64]"
+                >
+                  <Crop className="h-5 w-5" /> Recortar
+                </button>
+                {slots[sheetFor]?.crop && (
+                  <button
+                    onClick={() => {
+                      showWhole(sheetFor);
+                      setSheetFor(null);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl border-2 border-[#8b5580]/40 px-4 py-3 text-left font-bold text-[#6a3a64]"
+                  >
+                    <Maximize2 className="h-5 w-5" /> Mostrar a foto inteira
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    const i = sheetFor;
+                    setSheetFor(null);
+                    openPicker(i);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl border-2 border-[#8b5580]/40 px-4 py-3 text-left font-bold text-[#6a3a64]"
+                >
+                  <RotateCcw className="h-5 w-5" /> Trocar por outra foto
+                </button>
+                <button
+                  onClick={() => setSheetFor(null)}
+                  className="w-full rounded-xl bg-[#ef8fb0] px-4 py-3 font-extrabold text-white shadow-[3px_3px_0_#c9709a]"
+                >
+                  Fechar
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
       )}
     </motion.div>
   );
