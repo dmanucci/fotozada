@@ -99,6 +99,29 @@ async function loadAsset(url: string): Promise<HTMLImageElement> {
 // uma das 4 bordas laterais (externa-esquerda, costura-lado-1, costura-lado-2,
 // externa-direita) é independente e pode precisar de valores bem diferentes
 // (a costura no meio da folha não é simétrica na prática).
+// Realce dos tons CLAROS do fundo, só para a impressão.
+// A DNP (sublimação) imprime como papel branco os tons com menos de ~5% de tinta:
+// a aquarela rosa-clara da arte some no papel, embora apareça na tela. Aqui a
+// "tinta" (1 - luminância) dos tons claros é multiplicada por até `k`, com o
+// efeito sumindo suavemente acima de LIFT_SPAN. Branco puro e tons mais fortes
+// (bordas rosa, logo, textos) ficam exatamente como estão.
+const LIFT_SPAN = 0.3;
+export function liftLightTones(canvas: HTMLCanvasElement, k: number): void {
+  if (k <= 1) return;
+  const ctx = canvas.getContext("2d")!;
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const ink = 1 - (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+    if (ink <= 0.002 || ink >= LIFT_SPAN) continue;
+    const f = 1 + (k - 1) * Math.pow(1 - ink / LIFT_SPAN, 0.8);
+    d[i] = 255 - (255 - d[i]) * f;
+    d[i + 1] = 255 - (255 - d[i + 1]) * f;
+    d[i + 2] = 255 - (255 - d[i + 2]) * f;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
 async function drawStrip(
   ctx: CanvasRenderingContext2D,
   layout: IzabelLayoutDef,
@@ -107,6 +130,7 @@ async function drawStrip(
   oy: number,
   cropLeft: number,
   cropRight: number,
+  boost = 1,
 ) {
   const sw = layout._stripSize?.w ?? layout.sheet.width;
   const sh = layout._stripSize?.h ?? layout.sheet.height;
@@ -123,7 +147,17 @@ async function drawStrip(
   ctx.scale(scaleX, scaleY);
 
   const bg = await loadAsset(layout._frameSvg);
-  ctx.drawImage(bg, 0, 0, sw, sh);
+  if (boost > 1) {
+    // fundo reforçado numa tela à parte: só o fundo, nunca as fotos nem a sobreposição
+    const tmp = document.createElement("canvas");
+    tmp.width = Math.round(sw);
+    tmp.height = Math.round(sh);
+    tmp.getContext("2d")!.drawImage(bg, 0, 0, tmp.width, tmp.height);
+    liftLightTones(tmp, boost);
+    ctx.drawImage(tmp, 0, 0, sw, sh);
+  } else {
+    ctx.drawImage(bg, 0, 0, sw, sh);
+  }
 
   layout.cells.forEach((cell, i) => {
     if (cells[i]) ctx.drawImage(cells[i], cell.x, cell.y, cell.w, cell.h);
@@ -143,7 +177,11 @@ export async function composeSheet(
   layout: IzabelLayoutDef,
   cells: HTMLCanvasElement[],
   mirror = true,
+  // [tira esquerda, tira direita] — usado na folha de calibração; o padrão é o
+  // reforço de impressão do layout. O preview/arquivo salvo NÃO usam reforço.
+  boosts?: [number, number],
 ): Promise<Blob> {
+  const boost = layout._printBoost ?? 1;
   const canvas = document.createElement("canvas");
   canvas.width = layout.sheet.width;
   canvas.height = layout.sheet.height;
@@ -155,7 +193,7 @@ export async function composeSheet(
     // Tirinha: 4 bordas laterais independentes — tira 1 usa a borda externa
     // esquerda + seu lado da costura; tira 2 usa o outro lado da costura +
     // a borda externa direita.
-    await drawStrip(ctx, layout, cells, 0, 0, layout._cropLeft ?? 0, layout._cropSeamLeft ?? 0);
+    await drawStrip(ctx, layout, cells, 0, 0, layout._cropLeft ?? 0, layout._cropSeamLeft ?? 0, boosts?.[0] ?? boost);
     if (mirror) {
       await drawStrip(
         ctx,
@@ -165,10 +203,11 @@ export async function composeSheet(
         0,
         layout._cropSeamRight ?? 0,
         layout._cropRight ?? 0,
+        boosts?.[1] ?? boost,
       );
     }
   } else {
-    await drawStrip(ctx, layout, cells, 0, 0, layout._cropLeft ?? 0, layout._cropRight ?? 0);
+    await drawStrip(ctx, layout, cells, 0, 0, layout._cropLeft ?? 0, layout._cropRight ?? 0, boost);
   }
 
   return canvasToBlob(canvas, "image/png");

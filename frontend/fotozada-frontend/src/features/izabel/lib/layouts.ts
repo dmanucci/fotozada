@@ -30,6 +30,8 @@ export interface IzabelLayoutDef {
   // lado esquerdo da tira-2). Só usado em layouts espelhados (tirinha).
   _cropSeamLeft?: number;
   _cropSeamRight?: number;
+  // Reforço dos tons claros do fundo só na impressão (ver liftLightTones em compose.ts).
+  _printBoost?: number;
 }
 
 const SHEET = { width: 1200, height: 1800 }; // 10×15 retrato @ 300 DPI
@@ -106,6 +108,7 @@ export const LAYOUTS: IzabelLayoutDef[] = [
     _mirrorX: STRIP_W,
     _frameSvg: "/izabel/Tirinha/fundo.webp",
     _overlay: "/izabel/Tirinha/sobreposicao.webp",
+    _printBoost: 2.4,
     _stripSize: { w: STRIP_W, h: STRIP_H },
     _cropLeft: -14,
     _cropRight: -14,
@@ -121,6 +124,7 @@ export const LAYOUTS: IzabelLayoutDef[] = [
     cells: [V_CELL],
     _frameSvg: "/izabel/Vertical/fundo.webp",
     _overlay: "/izabel/Vertical/sobreposicao.webp",
+    _printBoost: 2.4,
   },
   {
     id: "single_10x15_h",
@@ -131,6 +135,7 @@ export const LAYOUTS: IzabelLayoutDef[] = [
     cells: [H_CELL],
     _frameSvg: "/izabel/Horizontal/fundo.webp",
     _overlay: "/izabel/Horizontal/sobreposicao.webp",
+    _printBoost: 2.4,
     // Overscan da DNP nesse layout aparece embaixo (compensado encolhendo
     // pra dentro); na direita a impressora não imprime até a borda física —
     // valor negativo faz o conteúdo sangrar levemente pra fora nesse lado.
