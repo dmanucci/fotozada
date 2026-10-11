@@ -14,6 +14,37 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+export { loadImage as loadImageElement };
+
+// Desenha a foto numa célula (outW x outH) sobre fundo branco.
+//  - crop === null  -> foto INTEIRA: encaixada sem cortar nada (bordas brancas
+//    nas sobras, como "contain");
+//  - crop definido  -> recorte escolhido pela pessoa (preenche a célula).
+export function drawCell(
+  img: HTMLImageElement,
+  outW: number,
+  outH: number,
+  crop: { x: number; y: number; width: number; height: number } | null,
+): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(outW);
+  canvas.height = Math.round(outH);
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  if (crop) {
+    ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, canvas.width, canvas.height);
+  } else {
+    const scale = Math.min(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
+    const w = img.naturalWidth * scale;
+    const h = img.naturalHeight * scale;
+    ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+  }
+  return canvas;
+}
+
 const assetCache = new Map<string, HTMLImageElement>();
 
 async function loadAsset(url: string): Promise<HTMLImageElement> {
