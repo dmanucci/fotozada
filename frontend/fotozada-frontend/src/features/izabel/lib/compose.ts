@@ -90,6 +90,12 @@ async function drawStrip(
     if (cells[i]) ctx.drawImage(cells[i], cell.x, cell.y, cell.w, cell.h);
   });
 
+  // Camada 3: sobreposição (flores/borboletas) por cima das fotos.
+  if (layout._overlay) {
+    const overlay = await loadAsset(layout._overlay);
+    ctx.drawImage(overlay, 0, 0, sw, sh);
+  }
+
   ctx.restore();
 }
 

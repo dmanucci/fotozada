@@ -3,7 +3,7 @@ import type { Cell, LayoutId } from "../../print/types";
 // Motor de layout do evento Izabel 1 aninho — cópia independente do motor
 // do outros eventos, simplificada: cada formato tem um único
 // design de moldura, só com fundo (sem overlay sobre a foto) e sem a opção
-// "sem moldura". Composição em 2 camadas: fundo -> foto.
+// "sem moldura". Composição: fundo -> foto (-> sobreposição, quando o layout tem uma).
 //
 // As artes usam o mesmo template dos outros eventos de 3-modelos
 // (tirinha/vertical/horizontal) — os retângulos brancos das fotos caem nas
@@ -18,7 +18,8 @@ export interface IzabelLayoutDef {
   cellAspect: number; // width / height, alimenta o cropper
   cells: Cell[];
   _mirrorX?: number;
-  _frameSvg: string; // fundo (camada 1)
+  _frameSvg: string; // fundo (camada 1) — SVG ou imagem raster
+  _overlay?: string; // sobreposição por cima das fotos (camada 3), PNG/WebP com transparência
   _stripSize?: { w: number; h: number };
   _cropBottom?: number; // px — override da margem de overscan padrão (PRINTER_CROP_BOTTOM)
   // Bordas externas reais da folha (esquerda da tira-1, direita da tira-2).
@@ -37,35 +38,35 @@ const SHEET_H = { width: 1800, height: 1200 }; // 10×15 paisagem @ 300 DPI
 // Padding branco entre a foto e a moldura, em unidades do viewBox. Separado
 // por eixo E por tipo de moldura — cada design/orientação tem sua própria
 // proporção de slot, então o mesmo valor não serve pros três.
-const STRIP_INSET_X = 6;
-const STRIP_INSET_Y = 4;
 const V_INSET_X = 6;
 const V_INSET_Y = 2.5;
 const H_INSET_X = 7;
 const H_INSET_Y = 2.5;
 
 // --- Tirinha 5×15 (duas tiras espelhadas por folha) ---
-const SVG_VB_W = 141.75;
-const STRIP_W = SHEET.width / 2;
-const STRIP_H = SHEET.height;
-const S = STRIP_W / SVG_VB_W;
+// Arte raster 667×2000 (proporção exata 5×15 cm). Camadas: fundo -> fotos ->
+// sobreposição (flores/borboletas por cima das bordas das fotos).
+const STRIP_W = SHEET.width / 2; // 600
+const STRIP_H = SHEET.height; // 1800
+const ART_W = 667;
+const ART_H = 2000;
+const SX = STRIP_W / ART_W;
+const SY = STRIP_H / ART_H;
 
-const SVG_SLOTS_RAW = [
-  { x: 14.0, y: 77.5, w: 115.5, h: 97.0 },
-  { x: 15.0, y: 183.5, w: 113.5, h: 95.5 },
-  { x: 14.0, y: 288.5, w: 114.0, h: 95.5 },
+// Área interna (branca) de cada moldura, medida na arte em px: x0,y0 → x1,y1.
+// As molduras têm tamanhos ligeiramente diferentes no desenho original.
+const ART_SLOTS = [
+  { x0: 68, y0: 368, x1: 608, y1: 819 },
+  { x0: 67, y0: 868, x1: 600, y1: 1312 },
+  { x0: 68, y0: 1362, x1: 601, y1: 1807 },
 ];
-const SVG_SLOTS = SVG_SLOTS_RAW.map((s) => ({
-  x: s.x + STRIP_INSET_X,
-  y: s.y + STRIP_INSET_Y,
-  w: s.w - STRIP_INSET_X * 2,
-  h: s.h - STRIP_INSET_Y * 2,
-}));
-const STRIP_CELLS = SVG_SLOTS.map((slot) => ({
-  x: Math.round(slot.x * S),
-  y: Math.round(slot.y * S),
-  w: Math.round(slot.w * S),
-  h: Math.round(slot.h * S),
+// Respiro entre a foto e a borda rosa da moldura (px da arte).
+const ART_INSET = 4;
+const STRIP_CELLS = ART_SLOTS.map((r) => ({
+  x: Math.round((r.x0 + ART_INSET) * SX),
+  y: Math.round((r.y0 + ART_INSET) * SY),
+  w: Math.round((r.x1 - r.x0 + 1 - ART_INSET * 2) * SX),
+  h: Math.round((r.y1 - r.y0 + 1 - ART_INSET * 2) * SY),
 }));
 
 // --- 10×15 Vertical (moldura retrato sobre a folha inteira) ---
@@ -99,7 +100,8 @@ export const LAYOUTS: IzabelLayoutDef[] = [
     cellAspect: STRIP_CELLS[0].w / STRIP_CELLS[0].h,
     cells: STRIP_CELLS,
     _mirrorX: STRIP_W,
-    _frameSvg: "/izabel/Tirinha/1-bg.svg",
+    _frameSvg: "/izabel/Tirinha/fundo.webp",
+    _overlay: "/izabel/Tirinha/sobreposicao.webp",
     _stripSize: { w: STRIP_W, h: STRIP_H },
     _cropLeft: -14,
     _cropRight: -14,
