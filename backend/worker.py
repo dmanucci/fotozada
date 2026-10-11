@@ -58,6 +58,9 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger("worker")
+# O cliente HTTP loga cada requisição em INFO; com o poll de backup a cada 5s
+# isso viraria ~17 mil linhas/dia no cartão SD e esconderia o log útil.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # ── Estado global ─────────────────────────────────────────────────────────────
 
