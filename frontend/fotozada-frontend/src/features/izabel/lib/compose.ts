@@ -16,6 +16,42 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 
 export { loadImage as loadImageElement };
 
+// Fundo desfocado da própria foto. Não usa ctx.filter (o Safari/iOS não tem):
+// reduz para uma miniatura e amplia em etapas com suavização — desfoque barato
+// e igual em todos os navegadores.
+function paintBlurFill(ctx: CanvasRenderingContext2D, img: HTMLImageElement, W: number, H: number) {
+  const step = (src: CanvasImageSource, sw: number, sh: number, w: number, h: number) => {
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const x = c.getContext("2d")!;
+    x.imageSmoothingEnabled = true;
+    x.imageSmoothingQuality = "high";
+    x.drawImage(src, 0, 0, sw, sh, 0, 0, w, h);
+    return c;
+  };
+  // miniatura "cover" de 20px de largura com a proporção da célula
+  const tw = 20;
+  const th = Math.max(1, Math.round((tw * H) / W));
+  const k = Math.max(tw / img.naturalWidth, th / img.naturalHeight);
+  const cw = tw / k;
+  const ch = th / k;
+  const thumb = document.createElement("canvas");
+  thumb.width = tw;
+  thumb.height = th;
+  const tctx = thumb.getContext("2d")!;
+  tctx.imageSmoothingQuality = "high";
+  tctx.drawImage(img, (img.naturalWidth - cw) / 2, (img.naturalHeight - ch) / 2, cw, ch, 0, 0, tw, th);
+  const mid = step(thumb, tw, th, tw * 6, th * 6);
+  const big = step(mid, mid.width, mid.height, Math.round(W / 4), Math.round(H / 4));
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(big, 0, 0, big.width, big.height, 0, 0, W, H);
+  // clareia: o fundo acompanha as cores da foto sem competir com ela
+  ctx.fillStyle = "rgba(255,255,255,0.30)";
+  ctx.fillRect(0, 0, W, H);
+}
+
 // Desenha a foto numa célula (outW x outH) sobre fundo branco.
 //  - crop === null  -> foto INTEIRA: encaixada sem cortar nada (bordas brancas
 //    nas sobras, como "contain");
@@ -40,6 +76,9 @@ export function drawCell(
     const scale = Math.min(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
     const w = img.naturalWidth * scale;
     const h = img.naturalHeight * scale;
+    // Sobras (foto mais estreita/larga que a janela): em vez de branco, a
+    // própria foto ampliada e desfocada.
+    if (w < canvas.width - 1 || h < canvas.height - 1) paintBlurFill(ctx, img, canvas.width, canvas.height);
     ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
   }
   return canvas;
