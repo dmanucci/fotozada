@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // peso zero e sem direitos autorais — a melodia é "Brilha, brilha, estrelinha",
 // de domínio público. Só toca depois de um toque do usuário (política de
 // autoplay dos navegadores) e para quando a aba fica em segundo plano.
+// Sempre começa DESLIGADA em cada visita: nada de religar sozinha.
 
 const HZ: Record<string, number> = { C: 523.25, D: 587.33, E: 659.25, F: 698.46, G: 783.99, A: 880 };
 
@@ -99,8 +100,6 @@ class MusicBox {
   }
 }
 
-const PREF_KEY = "fotozada_izabel_music";
-
 export function useLullaby() {
   const box = useRef<MusicBox | null>(null);
   const [on, setOn] = useState(false);
@@ -111,29 +110,9 @@ export function useLullaby() {
   const set = useCallback((v: boolean) => {
     onRef.current = v;
     setOn(v);
-    try {
-      localStorage.setItem(PREF_KEY, v ? "on" : "off");
-    } catch {
-      // sem localStorage: só não lembra a preferência
-    }
     if (v) void get().start();
     else void get().pause();
   }, []);
-
-  // Quem deixou ligado na última visita: religa no primeiro toque (o navegador
-  // não deixa tocar sem um gesto do usuário).
-  useEffect(() => {
-    let wants = false;
-    try {
-      wants = localStorage.getItem(PREF_KEY) === "on";
-    } catch {
-      // ignore
-    }
-    if (!wants) return;
-    const resume = () => set(true);
-    window.addEventListener("pointerdown", resume, { once: true });
-    return () => window.removeEventListener("pointerdown", resume);
-  }, [set]);
 
   // Pausa em segundo plano / retoma ao voltar.
   useEffect(() => {

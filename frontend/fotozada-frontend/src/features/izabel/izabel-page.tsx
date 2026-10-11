@@ -10,7 +10,7 @@ import { saveBatch, loadBatch, clearBatch } from "./lib/persisted-batch";
 import { StepIndicator } from "./components/step-indicator";
 import { StoryStep } from "./components/story-step";
 import { LayoutStep } from "./components/layout-step";
-import { PhotoStep } from "./components/photo-step";
+import { PhotoStep, type PhotoSlot } from "./components/photo-step";
 import { ReviewStep } from "./components/review-step";
 import { StatusStep } from "./components/status-step";
 import { SoundButton } from "./components/sound-button";
@@ -36,6 +36,8 @@ export function IzabelPage() {
   const [step, setStep] = useState<Step>(initialResult ? "status" : "story");
   const [layout, setLayout] = useState<IzabelLayoutDef | null>(null);
   const [frames, setFrames] = useState<FrameData[] | null>(null);
+  // Fotos já escolhidas na tela de fotos: sobrevivem a "Refazer" (voltar da revisão).
+  const [draft, setDraft] = useState<(PhotoSlot | null)[] | null>(null);
   const [items, setItems] = useState<PhotoItem[]>([]);
   const [result, setResult] = useState<BatchResult | null>(initialResult);
   const [submitting, setSubmitting] = useState(false);
@@ -82,7 +84,13 @@ export function IzabelPage() {
       });
   }
 
+  function clearDraft() {
+    draft?.forEach((s) => s && URL.revokeObjectURL(s.src));
+    setDraft(null);
+  }
+
   function reset() {
+    clearDraft();
     items.forEach((i) => URL.revokeObjectURL(i.composedUrl));
     setItems([]);
     setResult(null);
@@ -122,6 +130,8 @@ export function IzabelPage() {
             <LayoutStep
               key="layout"
               onSelect={(l) => {
+                // trocar de formato muda as vagas: as fotos escolhidas não servem mais
+                if (layout?.id !== l.id) clearDraft();
                 setLayout(l);
                 setStep("photos");
               }}
@@ -132,6 +142,8 @@ export function IzabelPage() {
             <PhotoStep
               key="photos"
               layout={layout}
+              draft={draft}
+              onDraftChange={setDraft}
               onDone={(f) => {
                 setFrames(f);
                 setStep("review");

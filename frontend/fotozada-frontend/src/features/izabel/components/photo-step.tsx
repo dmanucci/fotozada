@@ -11,7 +11,7 @@ import { canvasToBlob, drawCell, loadImageElement } from "../lib/compose";
 import type { IzabelLayoutDef } from "../lib/layouts";
 import type { FrameData } from "../types";
 
-interface Slot {
+export interface PhotoSlot {
   src: string; // object URL da foto original
   img: HTMLImageElement;
   crop: Area | null; // null = foto inteira (sem recorte)
@@ -54,14 +54,25 @@ async function decodeFile(file: File): Promise<{ src: string; img: HTMLImageElem
 
 export function PhotoStep({
   layout,
+  draft,
+  onDraftChange,
   onDone,
   onBack,
 }: {
   layout: IzabelLayoutDef;
+  // fotos já escolhidas (guardadas pela página): "Refazer" volta com elas
+  draft: (PhotoSlot | null)[] | null;
+  onDraftChange: (slots: (PhotoSlot | null)[]) => void;
   onDone: (frames: FrameData[]) => void;
   onBack: () => void;
 }) {
-  const [slots, setSlots] = useState<(Slot | null)[]>(() => Array(layout.photos).fill(null));
+  const [slots, setSlots] = useState<(PhotoSlot | null)[]>(() =>
+    draft && draft.length === layout.photos ? draft : Array(layout.photos).fill(null),
+  );
+  const commit = (next: (PhotoSlot | null)[]) => {
+    setSlots(next);
+    onDraftChange(next);
+  };
   const [converting, setConverting] = useState(false);
   const [busy, setBusy] = useState(false);
   // recorte opcional: índice da vaga sendo recortada (null = tela principal)
@@ -78,14 +89,6 @@ export function PhotoStep({
   useEffect(() => {
     slotsRef.current = slots;
   }, [slots]);
-
-  // libera as fotos originais ao sair da tela
-  useEffect(
-    () => () => {
-      slotsRef.current.forEach((s) => s && URL.revokeObjectURL(s.src));
-    },
-    [],
-  );
 
   const emptyIdx = slots.flatMap((s, i) => (s ? [] : [i]));
   const filled = slots.length - emptyIdx.length;
@@ -116,7 +119,7 @@ export function PhotoStep({
         if (old) URL.revokeObjectURL(old.src);
         next[idx] = { src: d.src, img: d.img, crop: null, preview: makePreview(d.img, layout.cells[idx], null) };
       }
-      setSlots(next);
+      commit(next);
     } finally {
       setConverting(false);
     }
@@ -132,8 +135,8 @@ export function PhotoStep({
   function applyCrop() {
     if (cropping === null || !areaPixels) return;
     const i = cropping;
-    setSlots((prev) =>
-      prev.map((s, k) =>
+    commit(
+      slots.map((s, k) =>
         k === i && s ? { ...s, crop: areaPixels, preview: makePreview(s.img, layout.cells[i], areaPixels) } : s,
       ),
     );
@@ -141,8 +144,8 @@ export function PhotoStep({
   }
 
   function showWhole(i: number) {
-    setSlots((prev) =>
-      prev.map((s, k) =>
+    commit(
+      slots.map((s, k) =>
         k === i && s ? { ...s, crop: null, preview: makePreview(s.img, layout.cells[i], null) } : s,
       ),
     );
@@ -257,44 +260,49 @@ export function PhotoStep({
                     ? "Toque no botão para abrir a galeria"
                     : "Dá para escolher todas de uma vez"
                   : allFilled
-                    ? "Toque numa foto para recortar ou trocar"
+                    ? "Quer ajustar? Toque em Recortar. Toque na foto para trocar."
                     : `Faltam ${emptyIdx.length} foto${emptyIdx.length > 1 ? "s" : ""}`}
             </p>
           </div>
 
           {/* As fotos aparecem como vão sair impressas. Tocar abre as opções. */}
-          <div className="flex flex-col items-center gap-2.5">
+          <div className="flex flex-col items-center gap-5">
             {slots.map((s, i) => (
-              <button
-                key={i}
-                onClick={() => (s ? setSheetFor(i) : openPicker(i))}
-                aria-label={s ? `Opções da foto ${i + 1}` : `Escolher foto ${i + 1}`}
-                className={`relative overflow-hidden rounded-xl border-2 ${
-                  s
-                    ? "border-[#ef8fb0] bg-white shadow-[3px_3px_0_#c9709a]"
-                    : "border-dashed border-[#ef8fb0]/70 bg-white/50"
-                } ${single ? "w-60" : "w-44"}`}
-                style={{ aspectRatio: layout.cellAspect }}
-              >
-                {s ? (
-                  <img src={s.preview} alt={`Foto ${i + 1}`} className="h-full w-full object-cover" />
-                ) : (
-                  <span className="flex h-full flex-col items-center justify-center gap-0.5 text-[#d63f86]">
-                    <Plus className="h-6 w-6" />
-                    <span className="text-xs font-bold">{single ? "Foto" : `Foto ${i + 1}`}</span>
-                  </span>
+              <div key={i} className={`relative ${single ? "w-60" : "w-44"}`}>
+                <button
+                  onClick={() => (s ? setSheetFor(i) : openPicker(i))}
+                  aria-label={s ? `Opções da foto ${i + 1}` : `Escolher foto ${i + 1}`}
+                  className={`relative block w-full overflow-hidden rounded-xl border-2 ${
+                    s
+                      ? "border-[#ef8fb0] bg-white shadow-[3px_3px_0_#c9709a]"
+                      : "border-dashed border-[#ef8fb0]/70 bg-white/50"
+                  }`}
+                  style={{ aspectRatio: layout.cellAspect }}
+                >
+                  {s ? (
+                    <img src={s.preview} alt={`Foto ${i + 1}`} className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="flex h-full flex-col items-center justify-center gap-0.5 text-[#d63f86]">
+                      <Plus className="h-6 w-6" />
+                      <span className="text-xs font-bold">{single ? "Foto" : `Foto ${i + 1}`}</span>
+                    </span>
+                  )}
+                  {!single && (
+                    <span className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#d63f86] text-[11px] font-extrabold text-white">
+                      {i + 1}
+                    </span>
+                  )}
+                </button>
+                {s && (
+                  <button
+                    onClick={() => startCrop(i)}
+                    className="absolute -bottom-2.5 left-1/2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border-2 border-white bg-[#6a3a64] px-3.5 py-1.5 text-xs font-extrabold text-white shadow-md"
+                  >
+                    <Crop className="h-3.5 w-3.5" />
+                    {s.crop ? "Ajustar recorte" : "Recortar"}
+                  </button>
                 )}
-                {!single && (
-                  <span className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#d63f86] text-[11px] font-extrabold text-white">
-                    {i + 1}
-                  </span>
-                )}
-                {s?.crop && (
-                  <span className="absolute bottom-1.5 right-1.5 rounded-md bg-white/90 p-1" title="Recortada">
-                    <Crop className="h-3 w-3 text-[#6a3a64]" />
-                  </span>
-                )}
-              </button>
+              </div>
             ))}
           </div>
 
