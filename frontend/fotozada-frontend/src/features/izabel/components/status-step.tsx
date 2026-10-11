@@ -47,13 +47,13 @@ export function StatusStep({
   result,
   submitting,
   onNew,
-  photoUrls = [],
+  photos = [],
 }: {
   result: BatchResult | null;
   submitting: boolean;
   onNew: () => void;
-  // pré-visualizações das fotos desta sessão (vazio após um refresh da página)
-  photoUrls?: string[];
+  // fotos desta sessão prontas para salvar (vazio após um refresh da página)
+  photos?: File[];
 }) {
   const statuses = useBatchStatus(
     result?.batchId ?? "",
@@ -215,18 +215,18 @@ export function StatusStep({
           <p className="text-xs font-semibold text-[#8b5580]">
             Leve a sua foto também no celular e deixe um recado para a Izabel.
           </p>
-          {photoUrls.map((url, i) => (
+          {photos.map((file, i) => (
             <button
-              key={url}
+              key={file.name}
               onClick={() =>
-                savePhoto(url, `izabel-1-aninho-${i + 1}.png`).catch(() =>
+                savePhoto(file).catch(() =>
                   toast.error("Não consegui salvar a foto. Tente de novo."),
                 )
               }
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#ef8fb0] px-4 py-2.5 text-sm font-extrabold text-white shadow-[3px_3px_0_#c9709a]"
             >
               <Download className="h-4 w-4" />
-              Salvar no celular{photoUrls.length > 1 ? ` (${i + 1})` : ""}
+              Salvar no celular{photos.length > 1 ? ` (${i + 1})` : ""}
             </button>
           ))}
           <Link

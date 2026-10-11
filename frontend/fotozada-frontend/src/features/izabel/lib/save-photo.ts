@@ -1,9 +1,14 @@
-// Salva a foto no celular: no iOS/Android abre a folha de compartilhar
-// ("Salvar imagem"); onde não há suporte, baixa o arquivo.
-export async function savePhoto(url: string, name = "izabel-1-aninho.png"): Promise<void> {
-  const blob = await (await fetch(url)).blob();
-  const file = new File([blob], name, { type: blob.type || "image/png" });
+// Salvar a foto no celular. No iOS/Android abre a folha de compartilhar
+// (Salvar imagem); onde não há suporte (desktop), baixa o arquivo.
+//
+// O File é montado ANTES do clique (makePhotoFile) para o share() rodar
+// direto no toque: o iPhone exige que seja chamado dentro do gesto do usuário,
+// sem nenhum await no meio.
+export function makePhotoFile(blob: Blob, name: string): File {
+  return new File([blob], name, { type: blob.type || "image/png" });
+}
 
+export async function savePhoto(file: File): Promise<void> {
   if (navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: "Izabel 1 aninho" });
@@ -14,11 +19,12 @@ export async function savePhoto(url: string, name = "izabel-1-aninho.png"): Prom
     }
   }
 
+  const url = URL.createObjectURL(file);
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
+  a.href = url;
+  a.download = file.name;
   document.body.appendChild(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }

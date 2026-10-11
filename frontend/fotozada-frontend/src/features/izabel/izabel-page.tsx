@@ -15,6 +15,7 @@ import { ReviewStep } from "./components/review-step";
 import { StatusStep } from "./components/status-step";
 import { SoundButton } from "./components/sound-button";
 import { useLullaby } from "./lib/lullaby";
+import { makePhotoFile } from "./lib/save-photo";
 
 // Sem etapa "Moldura": cada formato tem um único design neste evento.
 // "story" é o storytelling de abertura (scroll, mês a mês) antes do fluxo de foto.
@@ -101,6 +102,15 @@ export function IzabelPage() {
     setStep("story");
   }
 
+  // Arquivos prontos para o botão de salvar no celular (a imagem em si, não a URL temporária)
+  const savableFiles = useMemo(
+    () =>
+      items.map((i, k) =>
+        makePhotoFile(i.previewBlob ?? i.composedBlob, `izabel-1-aninho-${k + 1}.png`),
+      ),
+    [items],
+  );
+
   const stepIndex = STEPS.indexOf(step);
 
   return (
@@ -166,7 +176,7 @@ export function IzabelPage() {
               result={result}
               submitting={submitting}
               onNew={reset}
-              photoUrls={items.map((i) => i.composedUrl)}
+              photos={savableFiles}
             />
           )}
         </AnimatePresence>

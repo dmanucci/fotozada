@@ -21,6 +21,7 @@ export function ReviewStep({
 }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [blob, setBlob] = useState<Blob | null>(null);
+  const [previewImage, setPreviewImage] = useState<Blob | null>(null);
   const [hash, setHash] = useState("");
 
   useEffect(() => {
@@ -37,6 +38,7 @@ export function ReviewStep({
       createdUrl = url;
       if (active) {
         setBlob(printBlob);
+        setPreviewImage(previewBlob);
         setHash(h);
         setPreviewUrl(url);
       } else {
@@ -64,6 +66,7 @@ export function ReviewStep({
       composedBlob: blob,
       composedHash: hash,
       composedUrl: previewUrl ?? URL.createObjectURL(blob),
+      previewBlob: previewImage ?? undefined,
     });
   }
 

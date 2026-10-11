@@ -50,4 +50,5 @@ export interface PhotoItem {
   composedBlob: Blob; // assembled sheet, PNG
   composedHash: string; // sha-256 hex
   composedUrl: string; // object URL for preview
+  previewBlob?: Blob; // versão para salvar no celular (uma tira, sem duplicar); sobrevive ao revoke da URL
 }
