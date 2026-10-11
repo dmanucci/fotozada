@@ -40,8 +40,6 @@ const SHEET_H = { width: 1800, height: 1200 }; // 10×15 paisagem @ 300 DPI
 // proporção de slot, então o mesmo valor não serve pros três.
 const V_INSET_X = 6;
 const V_INSET_Y = 2.5;
-const H_INSET_X = 7;
-const H_INSET_Y = 2.5;
 
 // --- Tirinha 5×15 (duas tiras espelhadas por folha) ---
 // Arte raster 667×2000 (proporção exata 5×15 cm). Camadas: fundo -> fotos ->
@@ -81,14 +79,18 @@ const V_CELL = {
 };
 
 // --- 10×15 Horizontal (moldura paisagem sobre a folha inteira) ---
-const H_VB_W = 425.25;
-const H_S = SHEET_H.width / H_VB_W;
-const H_SLOT_RAW = { x: 15, y: 59.5, w: 395, h: 187 };
+// Arte raster 2000×1333 (3:2). Camadas: fundo -> foto -> sobreposição.
+// A janela branca da foto mede x 71–1932, y 280–1161 na arte (px).
+const H_ART_W = 2000;
+const H_ART_H = 1333;
+const H_SX = SHEET_H.width / H_ART_W;
+const H_SY = SHEET_H.height / H_ART_H;
+const H_WINDOW = { x0: 71, y0: 280, x1: 1932, y1: 1161 };
 const H_CELL = {
-  x: Math.round((H_SLOT_RAW.x + H_INSET_X) * H_S),
-  y: Math.round((H_SLOT_RAW.y + H_INSET_Y) * H_S),
-  w: Math.round((H_SLOT_RAW.w - H_INSET_X * 2) * H_S),
-  h: Math.round((H_SLOT_RAW.h - H_INSET_Y * 2) * H_S),
+  x: Math.round(H_WINDOW.x0 * H_SX),
+  y: Math.round(H_WINDOW.y0 * H_SY),
+  w: Math.round((H_WINDOW.x1 - H_WINDOW.x0 + 1) * H_SX),
+  h: Math.round((H_WINDOW.y1 - H_WINDOW.y0 + 1) * H_SY),
 };
 
 export const LAYOUTS: IzabelLayoutDef[] = [
@@ -124,7 +126,8 @@ export const LAYOUTS: IzabelLayoutDef[] = [
     sheet: SHEET_H,
     cellAspect: H_CELL.w / H_CELL.h,
     cells: [H_CELL],
-    _frameSvg: "/izabel/Horizontal/1-bg.svg",
+    _frameSvg: "/izabel/Horizontal/fundo.webp",
+    _overlay: "/izabel/Horizontal/sobreposicao.webp",
     // Overscan da DNP nesse layout aparece embaixo (compensado encolhendo
     // pra dentro); na direita a impressora não imprime até a borda física —
     // valor negativo faz o conteúdo sangrar levemente pra fora nesse lado.
