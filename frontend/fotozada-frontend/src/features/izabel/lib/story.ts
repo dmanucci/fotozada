@@ -19,7 +19,7 @@ export interface StoryMonth {
 }
 
 const MONTHS: Array<[string, string[]]> = [
-  ["Recém-nascida", ["Chegou a nossa fadinha.", "Primeiro colinho."]],
+  ["Recém-nascida", ["Chegou a nossa fadinha.", "Primeiros instantes.", "No colo, bem quentinho.", "Laço rosa e olhar atento."]],
   ["1 mês", ["Dormindo gostoso.", "Já cheia de charme.", "Soninho de anjo.", "Carinha de quem sonha.", "Olhar curioso."]],
   ["2 meses", ["Sorriso de derreter.", "De olho em tudo.", "Carinha de soninho.", "Pronta para o jogo.", "Meu 1º Natal."]],
   ["3 meses", ["Descobrindo as mãozinhas.", "Bochechas de encher as mãos."]],
