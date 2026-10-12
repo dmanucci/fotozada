@@ -158,8 +158,8 @@ function PhotoCarousel({
             setTouched(true);
           }
         }}
-        style={{ "--cw": "min(84vw, calc((100svh - 340px) * 0.8), 26rem)" } as React.CSSProperties}
-        className="flex w-full snap-x snap-mandatory gap-3 overflow-x-auto px-[calc((100%-var(--cw))/2)] py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{ "--cw": "min(88vw, calc((100svh - 300px) * 0.8), 28rem)" } as React.CSSProperties}
+        className="flex w-full snap-x snap-mandatory gap-2 overflow-x-auto px-[calc((100%-var(--cw))/2)] py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {item.photos.map((p, i) => (
           <div
