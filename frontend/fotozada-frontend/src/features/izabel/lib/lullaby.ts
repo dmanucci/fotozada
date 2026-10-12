@@ -1,24 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // Caixinha de música sintetizada na hora (Web Audio): sem arquivo de áudio,
-// peso zero e sem direitos autorais — a melodia é "Brilha, brilha, estrelinha",
-// de domínio público. Só toca depois de um toque do usuário (política de
-// autoplay dos navegadores) e para quando a aba fica em segundo plano.
+// peso zero e sem direitos autorais — a melodia é a "Canção de ninar" de
+// Brahms (domínio público), em oitava grave e timbre bem macio. Só toca depois
+// de um toque do usuário (política de autoplay dos navegadores) e para quando
+// a aba fica em segundo plano.
 // Sempre começa DESLIGADA em cada visita: nada de religar sozinha.
 
-const HZ: Record<string, number> = { C: 523.25, D: 587.33, E: 659.25, F: 698.46, G: 783.99, A: 880 };
+const HZ: Record<string, number> = {
+  C: 261.63, D: 293.66, E: 329.63, F: 349.23, G: 392, A: 440, B: 493.88, H: 523.25,
+};
 
-// [nota, duração em tempos]
+// [nota, duração em tempos] — compasso 3/4, "H" é o dó agudo.
 const PHRASE_A: Array<[string, number]> = [
-  ["C", 1], ["C", 1], ["G", 1], ["G", 1], ["A", 1], ["A", 1], ["G", 2],
-  ["F", 1], ["F", 1], ["E", 1], ["E", 1], ["D", 1], ["D", 1], ["C", 2],
+  ["E", 0.5], ["E", 0.5], ["G", 2], ["E", 0.5], ["E", 0.5], ["G", 2],
+  ["E", 0.5], ["G", 0.5], ["H", 2], ["B", 1], ["A", 1], ["A", 1], ["G", 3],
 ];
 const PHRASE_B: Array<[string, number]> = [
-  ["G", 1], ["G", 1], ["F", 1], ["F", 1], ["E", 1], ["E", 1], ["D", 2],
-  ["G", 1], ["G", 1], ["F", 1], ["F", 1], ["E", 1], ["E", 1], ["D", 2],
+  ["D", 0.5], ["E", 0.5], ["F", 2], ["D", 0.5], ["D", 0.5], ["E", 0.5], ["F", 1.5],
+  ["D", 0.5], ["F", 0.5], ["B", 2], ["A", 1], ["G", 1], ["F", 1], ["E", 3],
 ];
 const SONG: Array<[string, number]> = [...PHRASE_A, ...PHRASE_B, ...PHRASE_A];
-const BEAT = 0.7; // segundos por tempo — calmo, de ninar
+const BEAT = 0.85; // segundos por tempo — bem devagar, de ninar
 
 class MusicBox {
   private ctx: AudioContext | null = null;
@@ -31,15 +34,15 @@ class MusicBox {
     if (this.ctx) return this.ctx;
     const ctx = new AudioContext();
     const master = ctx.createGain();
-    master.gain.value = 0.16;
+    master.gain.value = 0.13;
     const lowpass = ctx.createBiquadFilter();
     lowpass.type = "lowpass";
-    lowpass.frequency.value = 3200;
-    // eco curtinho para dar brilho de caixinha de música
+    lowpass.frequency.value = 1800;
+    // eco suave para dar espaço, como uma caixinha de música num quarto calmo
     const delay = ctx.createDelay();
-    delay.delayTime.value = 0.32;
+    delay.delayTime.value = 0.45;
     const fb = ctx.createGain();
-    fb.gain.value = 0.28;
+    fb.gain.value = 0.32;
     delay.connect(fb).connect(delay);
     master.connect(lowpass);
     lowpass.connect(ctx.destination);
@@ -52,20 +55,22 @@ class MusicBox {
 
   private ping(freq: number, when: number, dur: number) {
     const ctx = this.ctx!;
-    const mk = (type: OscillatorType, f: number, peak: number) => {
+    const len = Math.max(dur, 1.4);
+    const mk = (f: number, peak: number) => {
       const o = ctx.createOscillator();
       const g = ctx.createGain();
-      o.type = type;
+      o.type = "sine";
       o.frequency.value = f;
+      // ataque lento (sem "plim" seco) e cauda longa
       g.gain.setValueAtTime(0.0001, when);
-      g.gain.exponentialRampToValueAtTime(peak, when + 0.01);
-      g.gain.exponentialRampToValueAtTime(0.0001, when + Math.max(dur, 0.9));
+      g.gain.exponentialRampToValueAtTime(peak, when + 0.06);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + len);
       o.connect(g).connect(this.master!);
       o.start(when);
-      o.stop(when + Math.max(dur, 0.9) + 0.05);
+      o.stop(when + len + 0.05);
     };
-    mk("sine", freq, 0.9);
-    mk("triangle", freq * 2, 0.22); // harmônico agudo = timbre de caixinha
+    mk(freq, 0.9);
+    mk(freq * 2, 0.07); // só um toque de brilho
   }
 
   private tick = () => {
@@ -77,7 +82,7 @@ class MusicBox {
       this.idx += 1;
       if (this.idx >= SONG.length) {
         this.idx = 0;
-        this.nextTime += BEAT * 3; // respiro antes de repetir
+        this.nextTime += BEAT * 4; // respiro antes de repetir
       }
     }
   };
