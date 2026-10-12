@@ -5,7 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // Brahms (domínio público), em oitava grave e timbre bem macio. Só toca depois
 // de um toque do usuário (política de autoplay dos navegadores) e para quando
 // a aba fica em segundo plano.
-// Sempre começa DESLIGADA em cada visita: nada de religar sozinha.
+// Começa LIGADA (o botão mostra "música tocando"), mas os navegadores só liberam
+// áudio depois de um toque/tecla: por isso a música começa no primeiro toque do
+// visitante em qualquer lugar da página. Se ele desligar no botão, fica desligada.
 
 const HZ: Record<string, number> = {
   C: 261.63, D: 293.66, E: 329.63, F: 349.23, G: 392, A: 440, B: 493.88, H: 523.25,
@@ -107,8 +109,9 @@ class MusicBox {
 
 export function useLullaby() {
   const box = useRef<MusicBox | null>(null);
-  const [on, setOn] = useState(false);
-  const onRef = useRef(false);
+  const [on, setOn] = useState(true);
+  const onRef = useRef(true);
+  const unlocked = useRef(false); // já houve um toque que libera o áudio
 
   const get = () => (box.current ??= new MusicBox());
 
@@ -119,11 +122,26 @@ export function useLullaby() {
     else void get().pause();
   }, []);
 
+  // Primeiro toque/tecla em qualquer lugar (menos no próprio botão de som):
+  // libera o áudio e começa a tocar se ainda estiver ligada.
+  useEffect(() => {
+    const unlock = (e: Event) => {
+      if ((e.target as Element | null)?.closest?.("[data-sound-toggle]")) return;
+      cleanup();
+      unlocked.current = true;
+      if (onRef.current) void get().start();
+    };
+    const events = ["pointerup", "touchend", "keydown"] as const;
+    const cleanup = () => events.forEach((n) => document.removeEventListener(n, unlock, true));
+    events.forEach((n) => document.addEventListener(n, unlock, true));
+    return cleanup;
+  }, []);
+
   // Pausa em segundo plano / retoma ao voltar.
   useEffect(() => {
     const onVis = () => {
       if (document.hidden) void get().pause();
-      else if (onRef.current) void get().start();
+      else if (onRef.current && unlocked.current) void get().start();
     };
     document.addEventListener("visibilitychange", onVis);
     return () => {
@@ -132,5 +150,18 @@ export function useLullaby() {
     };
   }, []);
 
-  return { on, toggle: () => set(!onRef.current) };
+  return {
+    on,
+    toggle: () => {
+      // Ainda sem som por falta de um toque: o primeiro toque no botão só
+      // libera e começa a tocar (o botão já mostrava "ligada").
+      if (!unlocked.current && onRef.current) {
+        unlocked.current = true;
+        void get().start();
+        return;
+      }
+      unlocked.current = true;
+      set(!onRef.current);
+    },
+  };
 }
