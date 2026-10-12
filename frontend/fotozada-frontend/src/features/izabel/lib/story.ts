@@ -23,7 +23,7 @@ const MONTHS: Array<[string, string[]]> = [
   ["1 mês", ["Dormindo gostoso.", "Já cheia de charme.", "Soninho de anjo.", "Carinha de quem sonha.", "Olhar curioso."]],
   ["2 meses", ["Sorriso de derreter.", "De olho em tudo.", "Carinha de soninho.", "Pronta para o jogo.", "Meu 1º Natal.", "Linda de vermelho, olhão arregalado."]],
   ["3 meses", ["Abelhinha de 3 meses.", "Rindo à toa.", "Deitadinha, sorrindo.", "Mãozinha na boca.", "Feliz com o brinquedinho."]],
-  ["4 meses", ["Gargalhada de lado.", "Pandinha de 4 meses.", "De olho grande na câmera.", "Firme de barriguinha para baixo.", "Abraçada com a pelúcia.", "Olhão e chupeta."]],
+  ["4 meses", ["Gargalhada de lado.", "Pandinha de 4 meses.", "De olho grande na câmera.", "Firme de barriguinha para baixo.", "Abraçada com a pelúcia.", "Olhão e chupeta.", "Rostinho colado, de olho na câmera.", "Cerejinha e laço vermelho."]],
   ["5 meses", ["Luzinhas e muito colo.", "Charme de laço vermelho.", "Nariz com nariz.", "Raio de sol no rosto.", "Boquinha aberta de surpresa.", "No colo, sob o coração de Mãe.", "Olho no olho.", "Vestidinho xadrez, bracinhos abertos."]],
   ["6 meses", ["Sol, colo e sorriso.", "Hora do mordedor.", "Rodeada de carinho.", "No colo, no banco do motorista.", "Sentadinha e sorrindo."]],
   ["7 meses", ["Espiando pelo buraquinho.", "Sorriso na grama, céu azul.", "Gorrinho de porquinho.", "Laço branco e olhar de lado.", "Brincando com o vovô.", "Aulinha de natação.", "Descobrindo a grama."]],
