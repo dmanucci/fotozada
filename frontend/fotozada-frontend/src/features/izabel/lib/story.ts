@@ -23,7 +23,7 @@ const MONTHS: Array<[string, string[]]> = [
   ["1 mês", ["Dormindo gostoso.", "Já cheia de charme.", "Soninho de anjo.", "Carinha de quem sonha.", "Olhar curioso."]],
   ["2 meses", ["Sorriso de derreter.", "De olho em tudo.", "Carinha de soninho.", "Pronta para o jogo.", "Meu 1º Natal."]],
   ["3 meses", ["Abelhinha de 3 meses.", "Rindo à toa.", "Deitadinha, sorrindo.", "Mãozinha na boca.", "Feliz com o brinquedinho."]],
-  ["4 meses", ["Cada dia mais curiosa.", "De barriguinha pra baixo.", "Olhar de quem entende tudo."]],
+  ["4 meses", ["Gargalhada de lado.", "Pandinha de 4 meses.", "De olho grande na câmera.", "Firme de barriguinha para baixo.", "Abraçada com a pelúcia.", "Olhão e chupeta."]],
   ["5 meses", ["Gargalhadas de encher a casa.", "Primeiras papinhas.", "Hora do banho, hora da festa."]],
   ["6 meses", ["Meio ano de pura alegria.", "Seis meses e muito amor."]],
   ["7 meses", ["Sentadinha, olhando tudo.", "Brincando sozinha.", "Colo é sempre o melhor lugar."]],
