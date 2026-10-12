@@ -18,7 +18,7 @@ export function LayoutStep({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -60 }}
       transition={{ type: "spring", stiffness: 300, damping: 28 }}
-      className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-6 pt-4"
+      className="mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col overflow-y-auto gap-6 px-6 pt-4"
     >
       <button onClick={onBack} className="flex items-center gap-1 self-start text-sm text-[#8b5580]/60">
         <ChevronLeft className="h-4 w-4" /> Voltar

@@ -76,7 +76,7 @@ export function ReviewStep({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -60 }}
       transition={{ type: "spring", stiffness: 300, damping: 28 }}
-      className="mx-auto flex w-full max-w-md flex-1 flex-col gap-5 p-6"
+      className="mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col gap-5 overflow-y-auto p-6 pb-0"
     >
       <button onClick={onBack} className="flex items-center gap-1 self-start text-sm text-[#8b5580]/60">
         <ChevronLeft className="h-4 w-4" /> Voltar
@@ -91,20 +91,20 @@ export function ReviewStep({
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.15 }}
-        className="flex flex-1 items-center justify-center"
+        className="flex flex-1 items-center justify-center py-1"
       >
         {previewUrl ? (
           <img
             src={previewUrl}
             alt="Pré-visualização"
-            className="max-h-96 rounded-xl shadow-2xl shadow-[#8b5580]/30"
+            className="max-h-[min(24rem,40svh)] rounded-xl shadow-2xl shadow-[#8b5580]/30"
           />
         ) : (
           <div className="text-sm text-[#8b5580]/40">Montando…</div>
         )}
       </motion.div>
 
-      <div className="flex flex-col gap-3 pb-2">
+      <div className="sticky bottom-0 -mx-6 mt-auto flex flex-col gap-3 bg-gradient-to-t from-[#fff5f7] from-70% to-transparent px-6 pb-4 pt-4">
         <motion.div whileTap={{ scale: 0.97 }}>
           <Button
             className="w-full rounded-xl bg-[#ef8fb0] font-bold text-white shadow-[3px_3px_0_#c9709a] hover:bg-[#e47aa0]"

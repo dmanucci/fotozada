@@ -116,7 +116,7 @@ export function StatusStep({
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-6 px-6"
+      className="mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col overflow-y-auto items-center justify-center gap-6 px-6"
     >
       <motion.div
         animate={allDone ? { scale: [1, 1.2, 1], rotate: [0, -10, 10, 0] } : {}}
