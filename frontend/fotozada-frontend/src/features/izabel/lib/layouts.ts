@@ -124,7 +124,7 @@ export const LAYOUTS: IzabelLayoutDef[] = [
     cells: [V_CELL],
     _frameSvg: "/izabel/Vertical/fundo.webp",
     _overlay: "/izabel/Vertical/sobreposicao.webp",
-    _printBoost: 2.0,
+    _printBoost: 3.0,
   },
   {
     id: "single_10x15_h",
@@ -135,7 +135,7 @@ export const LAYOUTS: IzabelLayoutDef[] = [
     cells: [H_CELL],
     _frameSvg: "/izabel/Horizontal/fundo.webp",
     _overlay: "/izabel/Horizontal/sobreposicao.webp",
-    _printBoost: 2.0,
+    _printBoost: 3.0,
     // Overscan da DNP nesse layout aparece embaixo (compensado encolhendo
     // pra dentro); na direita a impressora não imprime até a borda física —
     // valor negativo faz o conteúdo sangrar levemente pra fora nesse lado.
