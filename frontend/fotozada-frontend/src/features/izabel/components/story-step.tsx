@@ -158,12 +158,13 @@ function PhotoCarousel({
             setTouched(true);
           }
         }}
-        className="flex w-full snap-x snap-mandatory gap-4 overflow-x-auto px-[11vw] py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{ "--cw": "min(84vw, calc((100svh - 340px) * 0.8), 26rem)" } as React.CSSProperties}
+        className="flex w-full snap-x snap-mandatory gap-3 overflow-x-auto px-[calc((100%-var(--cw))/2)] py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {item.photos.map((p, i) => (
           <div
             key={p.src}
-            className={`w-[78vw] max-w-[22rem] shrink-0 snap-center rounded-[2rem] bg-white p-2.5 shadow-[0_6px_16px_-4px_rgba(139,85,128,0.4)] transition-[transform,opacity] duration-300 ${
+            className={`w-(--cw) shrink-0 snap-center rounded-[2rem] bg-white p-2.5 shadow-[0_6px_16px_-4px_rgba(139,85,128,0.4)] transition-[transform,opacity] duration-300 ${
               i === current ? "scale-100 opacity-100" : "scale-90 opacity-60"
             }`}
           >
@@ -268,7 +269,7 @@ function MonthContent({
   const numY = useTransform(progress, [0, 1], [120, -120]);
   const photoY = useTransform(progress, [0, 1], [40, -40]);
   // "Crescer": as fotos aumentam um pouco a cada mês.
-  const grow = 0.94 + (item.month / STORY_MONTHS.length) * 0.06;
+  const grow = 0.96 + (item.month / STORY_MONTHS.length) * 0.04;
   const butterfly = BUTTERFLIES[item.month % BUTTERFLIES.length];
   const side = item.month % 2 === 0 ? "right-[6%] top-[12%]" : "left-[6%] top-[16%]";
 
