@@ -21,16 +21,16 @@ export interface StoryMonth {
 const MONTHS: Array<[string, string[]]> = [
   ["Recém-nascida", ["Chegou a nossa fadinha.", "Primeiros instantes.", "No colo, bem quentinho.", "Laço rosa e olhar atento."]],
   ["1 mês", ["Dormindo gostoso.", "Já cheia de charme.", "Soninho de anjo.", "Carinha de quem sonha.", "Olhar curioso."]],
-  ["2 meses", ["Sorriso de derreter.", "De olho em tudo.", "Carinha de soninho.", "Pronta para o jogo.", "Meu 1º Natal.", "Linda de vermelho, olhão arregalado."]],
+  ["2 meses", ["Linda de vermelho, olhão arregalado.", "Sorriso de derreter.", "De olho em tudo.", "Carinha de soninho.", "Pronta para o jogo.", "Meu 1º Natal."]],
   ["3 meses", ["Abelhinha de 3 meses.", "Rindo à toa.", "Deitadinha, sorrindo.", "Mãozinha na boca.", "Feliz com o brinquedinho."]],
-  ["4 meses", ["Gargalhada de lado.", "Pandinha de 4 meses.", "De olho grande na câmera.", "Firme de barriguinha para baixo.", "Abraçada com a pelúcia.", "Olhão e chupeta.", "Rostinho colado, de olho na câmera.", "Cerejinha e laço vermelho."]],
+  ["4 meses", ["Rostinho colado, de olho na câmera.", "Cerejinha e laço vermelho.", "Gargalhada de lado.", "Pandinha de 4 meses.", "De olho grande na câmera.", "Firme de barriguinha para baixo.", "Abraçada com a pelúcia.", "Olhão e chupeta."]],
   ["5 meses", ["Luzinhas e muito colo.", "Charme de laço vermelho.", "Nariz com nariz.", "Raio de sol no rosto.", "Boquinha aberta de surpresa."]],
-  ["6 meses", ["Sol, colo e sorriso.", "Hora do mordedor.", "Rodeada de carinho.", "No colo, no banco do motorista.", "Sentadinha e sorrindo.", "No colo, sob o coração de Mãe.", "Olho no olho.", "Vestidinho xadrez, bracinhos abertos."]],
+  ["6 meses", ["No colo, sob o coração de Mãe.", "Olho no olho.", "Vestidinho xadrez, bracinhos abertos.", "Sol, colo e sorriso.", "Hora do mordedor.", "Rodeada de carinho.", "No colo, no banco do motorista.", "Sentadinha e sorrindo."]],
   ["7 meses", ["Espiando pelo buraquinho.", "Sorriso na grama, céu azul.", "Gorrinho de porquinho.", "Laço branco e olhar de lado.", "Brincando com o vovô.", "Aulinha de natação.", "Descobrindo a grama."]],
   ["8 meses", ["Sorriso de laço e muito colo.", "Colo de vó, sorriso largo.", "Mamadeira e soninho.", "Primeira voltinha de bicicleta.", "Sorriso com chupeta.", "Passeio com o vovô.", "Carrinho e olhos de quem observa.", "Banho de piscininha."]],
-  ["9 meses", ["Passeio e sorriso de dois dentinhos.", "Primeiro churrasquinho.", "Careta de língua para fora.", "De pé, de olho nos bichinhos.", "Olhão e naninha na boca.", "Torcendo de camisa 10.", "Sentadinha, de olho em tudo.", "Selfie no espelho, carinha séria."]],
+  ["9 meses", ["Selfie no espelho, carinha séria.", "Passeio e sorriso de dois dentinhos.", "Primeiro churrasquinho.", "Careta de língua para fora.", "De pé, de olho nos bichinhos.", "Olhão e naninha na boca.", "Torcendo de camisa 10.", "Sentadinha, de olho em tudo."]],
   ["10 meses", ["Aplaudindo as próprias conquistas.", "Língua para fora e muito charme.", "Tchauzinho de vestido vermelho.", "De pé no berço, sorrisão.", "Espiando por cima do berço.", "Olhar sério de quem observa tudo."]],
-  ["11 meses", ["Hora da papinha, com sorriso sujinho.", "Olhão de quem entende tudo.", "Gargalhada de encher o coração.", "Abacaxi e sorrisão.", "Passeio de fim de tarde, de vermelho.", "Azulzinho e chupeta no banco de trás."]],
+  ["11 meses", ["Passeio de fim de tarde, de vermelho.", "Azulzinho e chupeta no banco de trás.", "Hora da papinha, com sorriso sujinho.", "Olhão de quem entende tudo.", "Gargalhada de encher o coração.", "Abacaxi e sorrisão."]],
 ];
 
 export const STORY_MONTHS: StoryMonth[] = MONTHS.map(([label, captions], month) => ({
